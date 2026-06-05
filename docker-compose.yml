@@ -7,9 +7,9 @@ services:
       - "9042:9042"
     healthcheck:
       test: ["CMD", "cqlsh", "-e", "describe keyspaces"]
-      interval: 30s
+      interval: 15s
       timeout: 10s
-      retries: 10
+      retries: 15
 
   minio:
     image: minio/minio
@@ -51,9 +51,12 @@ services:
       CASSANDRA_HOST: "cassandra"
       KAFKA_BROKER: "kafka:9092"
       PROJECT_HOME: "/app"
+    restart: on-failure
     depends_on:
-      - cassandra
-      - kafka
+      cassandra:
+        condition: service_healthy
+      kafka:
+        condition: service_started
 
   spark-master:
     image: apache/spark:4.1.1-scala2.13-java21-python3-r-ubuntu
@@ -86,6 +89,7 @@ services:
     depends_on:
       - spark-master
     command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
+
   # Job de prediccion. Solo arranca bajo demanda (perfil "job"), una vez
   # que los datos, topics y modelos estan listos:
   #   docker compose --profile job up -d spark-job
