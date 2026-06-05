@@ -70,7 +70,7 @@ Verifica que están TODOS arriba:
 
     docker compose ps
 
-Espera a que cassandra aparezca como "Up (healthy)" antes de seguir.
+Espera a que cassandra aparezca como "Up (healthy)" antes de seguir (2-3 min).
 
 Si faltara alguno (p. ej. web a veces no arranca al primer intento al
 encender la VM), levántalo explícitamente:
