@@ -115,7 +115,9 @@ Verifica (debe dar ~4696):
 
 El bucket 'lakehouse' lo crea MinIO al arrancar. Si no existiera, créalo en
 la consola web (http://localhost:9001, admin/admin123) o con:
+    
     docker exec minio mc alias set local http://localhost:9000 admin admin123
+    
     docker exec minio mc mb --ignore-existing local/lakehouse
 
 Crear la tabla Iceberg con los datos de vuelos:
