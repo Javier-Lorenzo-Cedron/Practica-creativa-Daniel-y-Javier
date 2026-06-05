@@ -89,6 +89,7 @@ Debe aparecer el master ALIVE con 2 workers registrados.
     docker exec kafka /opt/kafka/bin/kafka-topics.sh --create --bootstrap-server localhost:9092 --replication-factor 1 --partitions 1 --topic flight-delay-ml-response
 
 Verifica:
+    
     docker exec kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list
 
 ==========================================================================
