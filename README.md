@@ -35,7 +35,7 @@ pasos 7 y 8.)
 ==========================================================================
 ## 2. Descargar los datos (genera la carpeta data/)
 ==========================================================================
-    bash resources/resources/download_data.sh
+    bash resources/download_data.sh
 
 Debe dejar en data/:
 - simple_flight_delay_features.jsonl.bz2
