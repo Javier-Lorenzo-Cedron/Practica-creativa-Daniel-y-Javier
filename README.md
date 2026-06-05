@@ -106,6 +106,7 @@ Importar las distancias (con el entorno activado; tarda ~2 min):
     python3 import_to_cassandra.py
 
 Verifica (debe dar ~4696):
+    
     docker exec cassandra cqlsh -e "SELECT COUNT(*) FROM agile_data_science.origin_dest_distances"
 
 ==========================================================================
