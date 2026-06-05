@@ -77,7 +77,6 @@ encender la VM), levántalo explícitamente:
 
     docker compose up -d web
 
-Espera a que cassandra aparezca como "Up (healthy)" antes de seguir.
 
 Verifica el cluster Spark en el navegador:
     http://localhost:8080
