@@ -30,5 +30,10 @@ ghostdriver.log
 cassandra
 janusgraph
 deep
-data/origin_dest_distances.jsonl
-data/simple_flight_delay_features.jsonl.bz2
+data
+# Entrega: compilado del job y virtualenv
+flight_prediction/target
+env
+flight_prediction/project/target
+flight_prediction/target
+exit

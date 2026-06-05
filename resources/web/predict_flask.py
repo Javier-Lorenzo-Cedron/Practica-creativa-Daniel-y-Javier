@@ -1,7 +1,12 @@
+import eventlet
+eventlet.monkey_patch()
 import sys, os, re
 from flask import Flask, render_template, request
 from pymongo import MongoClient
 from bson import json_util
+import flask_socketio
+import cassandra.cluster
+import kafka
 
 # Configuration details
 import config
@@ -12,10 +17,14 @@ import predict_utils
 # Set up Flask, Mongo and Elasticsearch
 app = Flask(__name__)
 
-client = MongoClient()
+client = MongoClient(os.getenv("MONGO_URI", "mongodb://127.0.0.1:27017"))
 
 from pyelasticsearch import ElasticSearch
-elastic = ElasticSearch(config.ELASTIC_URL)
+try:
+  elastic = ElasticSearch(config.ELASTIC_URL)
+except Exception as e:
+  print("Elasticsearch no disponible, las rutas de busqueda no funcionaran:", e)
+  elastic = None
 
 import json
 
@@ -25,10 +34,40 @@ import datetime
 
 # Setup Kafka
 from kafka import KafkaProducer
-producer = KafkaProducer(bootstrap_servers=['localhost:9092'],api_version=(0,10))
+producer = KafkaProducer(bootstrap_servers=[os.getenv("KAFKA_BROKER", "localhost:29092")],api_version=(3,7,0))
 PREDICTION_TOPIC = 'flight-delay-ml-request'
 
 import uuid
+
+# Setup SocketIO sobre la app Flask
+from flask_socketio import SocketIO
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
+
+# Sesion de Cassandra para leer distancias (sustituye a Mongo para el punto 2)
+from cassandra.cluster import Cluster
+cassandra_cluster = Cluster([os.getenv("CASSANDRA_HOST", "127.0.0.1")])
+cassandra_session = cassandra_cluster.connect('agile_data_science')
+
+# Topic de respuesta del que leeremos las predicciones ya calculadas
+RESPONSE_TOPIC = 'flight-delay-ml-response'
+
+# Consumer de Kafka en segundo plano: lee el topic de respuesta
+# y empuja cada prediccion a los navegadores por WebSocket
+def kafka_consumer_task():
+  from kafka import KafkaConsumer
+  consumer = KafkaConsumer(
+    RESPONSE_TOPIC,
+    bootstrap_servers=[os.getenv("KAFKA_BROKER", "localhost:29092")],
+    auto_offset_reset='latest',
+    api_version=(3,7,0)
+  )
+  for message in consumer:
+    prediction = json.loads(message.value.decode('utf-8'))
+    socketio.emit('prediction_result', prediction)
+
+# Lanzar el consumer cuando arranque el servidor
+def start_background_consumer():
+  socketio.start_background_task(kafka_consumer_task)
 
 # Chapter 5 controller: Fetch a flight and display it
 @app.route("/on_time_performance")
@@ -325,7 +364,7 @@ def regress_flight_delays():
   prediction_features['FlightNum'] = api_form_values['FlightNum']
   
   # Set the derived values
-  prediction_features['Distance'] = predict_utils.get_flight_distance(client, api_form_values['Origin'], api_form_values['Dest'])
+  prediction_features['Distance'] = predict_utils.get_flight_distance(cassandra_session, api_form_values['Origin'], api_form_values['Dest'])
   
   # Turn the date into DayOfYear, DayOfMonth, DayOfWeek
   date_features_dict = predict_utils.get_regression_date_args(api_form_values['FlightDate'])
@@ -382,7 +421,7 @@ def classify_flight_delays():
   
   # Set the derived values
   prediction_features['Distance'] = predict_utils.get_flight_distance(
-    client, api_form_values['Origin'],
+    cassandra_session, api_form_values['Origin'],
     api_form_values['Dest']
   )
   
@@ -471,7 +510,7 @@ def classify_flight_delays_realtime():
   
   # Set the derived values
   prediction_features['Distance'] = predict_utils.get_flight_distance(
-    client, api_form_values['Origin'],
+    cassandra_session, api_form_values['Origin'],
     api_form_values['Dest']
   )
   
@@ -538,8 +577,11 @@ def shutdown():
   return 'Server shutting down...'
 
 if __name__ == "__main__":
-    app.run(
-    debug=True,
+  start_background_consumer()
+  socketio.run(
+    app,
+    debug=False,
     host='0.0.0.0',
-    port='5001'
+    port=5001,
+    use_reloader=False
   )

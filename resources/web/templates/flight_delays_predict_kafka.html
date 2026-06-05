@@ -29,6 +29,19 @@
       <p>Delay: <span id="result" style="display: inline-block;"></span></p>
   </div>
 
-  <!-- Load our form processing javascript -->
-  <script src="/static/flight_delay_predict_polling.js"></script>
+  <!-- WebSocket: recibe la prediccion empujada por el servidor -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.4/socket.io.min.js"></script>
+  <script>
+    var socket = io();
+    socket.on('prediction_result', function(data) {
+      var labels = {0: 'On time', 1: 'Slight delay', 2: 'Very late', 3: 'Extremely late'};
+      document.getElementById('result').innerHTML = labels[data.Prediction] || data.Prediction;
+    });
+    document.getElementById('flight_delay_classification').onsubmit = function(e) {
+      e.preventDefault();
+      document.getElementById('result').innerHTML = 'Processing...';
+      var formData = new FormData(this);
+      fetch('/flights/delays/predict/classify_realtime', {method: 'POST', body: formData});
+    };
+  </script>
 {% endblock %}

@@ -1,0 +1,11 @@
+Flask
+pymongo
+kafka-python
+iso8601
+joblib
+flask-socketio
+eventlet
+cassandra-driver
+futurist
+pyelasticsearch
+urllib3==1.24

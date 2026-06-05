@@ -1,25 +1,35 @@
 package es.upm.dit.ging.predictor
-import com.mongodb.spark._
+
 import org.apache.spark.ml.classification.RandomForestClassificationModel
 import org.apache.spark.ml.feature.{Bucketizer, StringIndexerModel, VectorAssembler}
-import org.apache.spark.sql.functions.{concat, from_json, lit}
 import org.apache.spark.sql.types.{DataTypes, StructType}
 import org.apache.spark.sql.{DataFrame, SparkSession}
+import org.apache.spark.sql.functions.{concat, from_json, lit, to_json, col}
+import com.datastax.oss.driver.api.core.CqlSession
+import java.net.InetSocketAddress
 
 object MakePrediction {
 
   def main(args: Array[String]): Unit = {
     println("Fligth predictor starting...")
 
+    // Hosts parametrizados: usan variables de entorno con default para
+    // ejecucion manual (localhost). En docker-compose se sobreescriben
+    // con los nombres de servicio (kafka, cassandra, spark-master).
+    val sparkMaster = sys.env.getOrElse("SPARK_MASTER", "local[*]")
+    val kafkaBroker = sys.env.getOrElse("KAFKA_BROKER", "localhost:29092")
+    val cassandraHost = sys.env.getOrElse("CASSANDRA_HOST", "127.0.0.1")
+    val basePath = sys.env.getOrElse("BASE_PATH", "/home/upm/practica_creativa")
+
     val spark = SparkSession
       .builder
       .appName("StructuredNetworkWordCount")
-      .master("local[*]")
+      .master(sparkMaster)
       .getOrCreate()
     import spark.implicits._
 
     //Load the arrival delay bucketizer
-    val base_path= "/Users/admin/Downloads/practica_creativa"
+    val base_path = basePath
     val arrivalBucketizerPath = "%s/models/arrival_bucketizer_2.0.bin".format(base_path)
     print(arrivalBucketizerPath.toString())
     val arrivalBucketizer = Bucketizer.load(arrivalBucketizerPath)
@@ -44,8 +54,9 @@ object MakePrediction {
     val df = spark
       .readStream
       .format("kafka")
-      .option("kafka.bootstrap.servers", "localhost:9092")
+      .option("kafka.bootstrap.servers", kafkaBroker)
       .option("subscribe", "flight-delay-ml-request")
+      .option("startingOffsets", "earliest")
       .load()
     df.printSchema()
 
@@ -136,20 +147,42 @@ object MakePrediction {
     // Inspect the output
     finalPredictions.printSchema()
 
-    // define a streaming query
-    val dataStreamWriter = finalPredictions
+    // Escribir prediccion en Kafka response topic
+    val kafkaWriter = finalPredictions
+      .select(to_json(org.apache.spark.sql.functions.struct(finalPredictions.columns.map(col): _*)).as("value"))
       .writeStream
-      .format("mongodb")
-      .option("spark.mongodb.connection.uri", "mongodb://127.0.0.1:27017")
-      .option("spark.mongodb.database", "agile_data_science")
-      .option("checkpointLocation", "/tmp")
-      .option("spark.mongodb.collection", "flight_delay_ml_response")
+      .format("kafka")
+      .option("kafka.bootstrap.servers", kafkaBroker)
+      .option("topic", "flight-delay-ml-response")
+      .option("checkpointLocation", "/tmp/kafka-response-checkpoint")
       .outputMode("append")
+      .start()
 
-    // run the query
-    val query = dataStreamWriter.start()
+    // Escribir prediccion en Cassandra
+    val cassandraWriter = finalPredictions.writeStream
+      .outputMode("append")
+      .option("checkpointLocation", "/tmp/cassandra-checkpoint")
+      .foreachBatch { (batchDF: DataFrame, batchId: Long) =>
+        val session = CqlSession.builder()
+          .addContactPoint(new InetSocketAddress(cassandraHost, 9042))
+          .withLocalDatacenter("datacenter1")
+          .build()
+        batchDF.collect().foreach { row =>
+          val uuid = row.getAs[String]("UUID")
+          val origin = row.getAs[String]("Origin")
+          val dest = row.getAs[String]("Dest")
+          val prediction = row.getAs[Double]("Prediction").toInt
+          session.execute(
+            s"""INSERT INTO agile_data_science.flight_delay_predictions
+               (uuid, origin, dest, prediction, timestamp)
+               VALUES ('$uuid', '$origin', '$dest', $prediction, toTimestamp(now()))"""
+          )
+        }
+        session.close()
+      }
+      .start()
+
     // Console Output for predictions
-
     val consoleOutput = finalPredictions.writeStream
       .outputMode("append")
       .format("console")
