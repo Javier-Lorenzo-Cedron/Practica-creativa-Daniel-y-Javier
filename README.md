@@ -23,6 +23,7 @@ necesita (hay dependencias entre datos, modelos y el job).
 ==========================================================================
 ## 1. Entorno de Python
 ==========================================================================
+
 Desde la raíz del proyecto (practica_creativa/):
 
     python3 -m venv env
@@ -35,6 +36,7 @@ pasos 7 y 8.)
 ==========================================================================
 ## 2. Descargar los datos (genera la carpeta data/)
 ==========================================================================
+    
     bash resources/download_data.sh
 
 Debe dejar en data/:
@@ -44,6 +46,7 @@ Debe dejar en data/:
 ==========================================================================
 ## 3. Compilar el job de Scala (genera flight_prediction/target/)
 ==========================================================================
+    
     cd flight_prediction
     sbt package
     cd ..
@@ -57,6 +60,7 @@ monta como volumen en el contenedor.)
 ==========================================================================
 ## 4. Levantar la infraestructura (todo menos el job)
 ==========================================================================
+    
     docker compose up -d
 
 Levanta: cassandra, minio, kafka, web, spark-master, spark-worker-1,
@@ -80,6 +84,7 @@ Debe aparecer el master ALIVE con 2 workers registrados.
 ==========================================================================
 ## 5. Crear los topics de Kafka
 ==========================================================================
+    
     docker exec kafka /opt/kafka/bin/kafka-topics.sh --create --bootstrap-server localhost:9092 --replication-factor 1 --partitions 1 --topic flight-delay-ml-request
     docker exec kafka /opt/kafka/bin/kafka-topics.sh --create --bootstrap-server localhost:9092 --replication-factor 1 --partitions 1 --topic flight-delay-ml-response
 
@@ -89,6 +94,7 @@ Verifica:
 ==========================================================================
 ## 6. Preparar Cassandra (keyspace, tablas e importar distancias)
 ==========================================================================
+
 Crear keyspace y tablas:
 
     docker exec cassandra cqlsh -e "CREATE KEYSPACE IF NOT EXISTS agile_data_science WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1}; USE agile_data_science; CREATE TABLE IF NOT EXISTS origin_dest_distances (origin text, dest text, distance int, PRIMARY KEY (origin, dest)); CREATE TABLE IF NOT EXISTS flight_delay_predictions (uuid text PRIMARY KEY, origin text, dest text, prediction int, timestamp timestamp);"
@@ -104,6 +110,7 @@ Verifica (debe dar ~4696):
 ==========================================================================
 ## 7. Crear la tabla Iceberg en el Lakehouse (MinIO)
 ==========================================================================
+
 El bucket 'lakehouse' lo crea MinIO al arrancar. Si no existiera, créalo en
 la consola web (http://localhost:9001, admin/admin123) o con:
     docker exec minio mc alias set local http://localhost:9000 admin admin123
@@ -119,6 +126,7 @@ Verifica en http://localhost:9001 -> lakehouse -> warehouse/
 ==========================================================================
 ## 8. Entrenar los modelos (genera models/ en local y en el Lakehouse)
 ==========================================================================
+
 Lee los datos del Lakehouse y guarda los modelos en local (carpeta models/)
 y en MinIO. Tarda varios minutos (entrena un RandomForest sobre 457k filas):
 
@@ -133,6 +141,7 @@ y el job carga los modelos desde ahí.)
 ==========================================================================
 ## 9. Lanzar el job de predicción en el cluster (servicio spark-job)
 ==========================================================================
+
 Con los datos, topics y modelos ya listos, arranca el job bajo demanda:
 
     docker compose --profile job up -d spark-job
@@ -147,6 +156,7 @@ repartidas entre los 2 workers (modo distribuido).
 ==========================================================================
 ## 10. Probar el escenario completo
 ==========================================================================
+
 Abrir en el navegador:
     http://localhost:5001/flights/delays/predict_kafka
 
@@ -159,6 +169,7 @@ Verificar que se guardó en Cassandra:
 ==========================================================================
 ## Orden de dependencias (resumen)
 ==========================================================================
+
 env Python -> descargar data -> compilar JAR -> docker compose up (infra) ->
 topics Kafka -> Cassandra (keyspace+tablas+distancias) ->
 Iceberg (datos en Lakehouse) -> entrenar modelos -> lanzar spark-job -> probar
@@ -166,6 +177,7 @@ Iceberg (datos en Lakehouse) -> entrenar modelos -> lanzar spark-job -> probar
 ==========================================================================
 ## Notas
 ==========================================================================
+
 - Cassandra y Kafka NO tienen volumen: si se apagan o se recrean los
   contenedores, hay que repetir los pasos 5 y 6 (topics y datos de Cassandra)
   al volver a arrancar. MinIO sí tiene volumen (minio_data), conserva los
