@@ -27,7 +27,7 @@ Desde la raíz del proyecto (practica_creativa/):
 
     python3 -m venv env
     source env/bin/activate
-    pip install pyspark==4.1.1 cassandra-driver futurist
+    pip install -r requirements.txt
 
 (pyspark aporta el spark-submit que usan los scripts de preparación de los
 pasos 7 y 8.)
