@@ -170,6 +170,7 @@ Rellenar el formulario (valores por defecto ATL -> SFO) y pulsar Submit.
 La predicción debe aparecer en la página sin recargar (vía WebSocket).
 
 Verificar que se guardó en Cassandra:
+    
     docker exec cassandra cqlsh -e "SELECT * FROM agile_data_science.flight_delay_predictions LIMIT 50"
 
 ==========================================================================
