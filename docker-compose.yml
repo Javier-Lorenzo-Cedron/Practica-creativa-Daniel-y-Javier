@@ -110,12 +110,15 @@ services:
       - SPARK_MASTER=spark://spark-master:7077
       - KAFKA_BROKER=kafka:9092
       - CASSANDRA_HOST=cassandra
-      - BASE_PATH=/app
+      - BASE_PATH=s3a://lakehouse
+      - MINIO_ENDPOINT=http://minio:9000
+      - MINIO_ACCESS_KEY=admin
+      - MINIO_SECRET_KEY=admin123
     command: >
       /opt/spark/bin/spark-submit
       --master spark://spark-master:7077
       --conf spark.jars.ivy=/tmp/.ivy2
-      --packages org.apache.spark:spark-sql-kafka-0-10_2.13:4.1.1,com.datastax.oss:java-driver-core:4.17.0
+      --packages org.apache.spark:spark-sql-kafka-0-10_2.13:4.1.1,com.datastax.oss:java-driver-core:4.17.0,org.apache.hadoop:hadoop-aws:3.4.1,com.amazonaws:aws-java-sdk-bundle:1.12.262
       --class es.upm.dit.ging.predictor.MakePrediction
       /app/jar/flight_prediction_2.13-0.1.jar
 

@@ -19,12 +19,20 @@ object MakePrediction {
     val sparkMaster = sys.env.getOrElse("SPARK_MASTER", "local[*]")
     val kafkaBroker = sys.env.getOrElse("KAFKA_BROKER", "localhost:29092")
     val cassandraHost = sys.env.getOrElse("CASSANDRA_HOST", "127.0.0.1")
-    val basePath = sys.env.getOrElse("BASE_PATH", "/home/upm/practica_creativa")
+    val basePath = sys.env.getOrElse("BASE_PATH", "s3a://lakehouse")
 
     val spark = SparkSession
       .builder
       .appName("StructuredNetworkWordCount")
       .master(sparkMaster)
+      .config("spark.hadoop.fs.s3a.endpoint", sys.env.getOrElse("MINIO_ENDPOINT", "[minio](http://minio:9000)"))
+      .config("spark.hadoop.fs.s3a.access.key", sys.env.getOrElse("MINIO_ACCESS_KEY", "admin"))
+      .config("spark.hadoop.fs.s3a.secret.key", sys.env.getOrElse("MINIO_SECRET_KEY", "admin123"))
+      .config("spark.hadoop.fs.s3a.path.style.access", "true")
+      .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
+      .config("spark.hadoop.fs.s3a.endpoint.region", "us-east-1")
+      .config("spark.hadoop.fs.s3a.connection.ssl.enabled", "false")
+      .config("spark.hadoop.fs.s3a.change.detection.mode", "none")
       .getOrCreate()
     import spark.implicits._
 
