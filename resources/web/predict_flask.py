@@ -46,7 +46,8 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
 # Sesion de Cassandra para leer distancias (sustituye a Mongo para el punto 2)
 from cassandra.cluster import Cluster
 cassandra_cluster = Cluster([os.getenv("CASSANDRA_HOST", "127.0.0.1")])
-cassandra_session = cassandra_cluster.connect('agile_data_science')
+cassandra_session = cassandra_cluster.connect()
+cassandra_session.set_keyspace('agile_data_science')
 
 # Topic de respuesta del que leeremos las predicciones ya calculadas
 RESPONSE_TOPIC = 'flight-delay-ml-response'

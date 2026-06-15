@@ -122,5 +122,34 @@ services:
       --class es.upm.dit.ging.predictor.MakePrediction
       /app/jar/flight_prediction_2.13-0.1.jar
 
+  spark-train:
+    build:
+      context: .
+      dockerfile: Dockerfile.spark-train
+    container_name: spark-train
+    profiles: ["train"]
+    depends_on:
+      - spark-master
+      - spark-worker-1
+      - spark-worker-2
+      - minio
+    volumes:
+      - ./resources:/opt/spark-apps/resources
+      - ./models:/app/models
+      - ./:/opt/project
+    environment:
+      - MINIO_ENDPOINT=http://minio:9000
+      - MINIO_ACCESS_KEY=admin
+      - MINIO_SECRET_KEY=admin123
+      - LOCAL_MODELS_PATH=/app/models
+    working_dir: /opt/project
+    command: >
+      /opt/spark/bin/spark-submit
+      --master spark://spark-master:7077
+      --deploy-mode client
+      --conf spark.jars.ivy=/tmp/.ivy2
+      --packages org.apache.iceberg:iceberg-spark-runtime-4.1_2.13:1.11.0,org.apache.hadoop:hadoop-aws:3.4.1
+      resources/train_spark_mllib_model.py .
+    
 volumes:
   minio_data:

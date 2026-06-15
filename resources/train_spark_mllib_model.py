@@ -1,6 +1,6 @@
 # !/usr/bin/env python
 
-import sys, os, re
+import sys, os, re, shutil
 from os import environ
 
 # Pass date and base path to main() from airflow
@@ -19,6 +19,7 @@ def main(base_path):
   MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "http://localhost:9000")
   MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "admin")
   MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY", "admin123")
+  LOCAL_MODELS_PATH = os.getenv("LOCAL_MODELS_PATH", "/app/models")
 
   # If there is no SparkSession, create the environment
   try:
@@ -73,9 +74,14 @@ def main(base_path):
     StructField("Origin", StringType(), True),      # "Origin":"TUS"
   ])
 
+  def delete_if_exists(path):
+    if os.path.exists(path):
+        shutil.rmtree(path, ignore_errors=True)
+
   # Leemos los datos desde la tabla Iceberg del Lakehouse (en lugar del fichero local)
-  features = spark.table("lakehouse.flights_db.flights")
-  features.first()
+  features = spark.table("lakehouse.flights_db.flights").repartition(8).cache()
+  features.count()
+  print("Partitions in features:", features.rdd.getNumPartitions())
 
   #
   # Check for nulls in features before using Spark ML
@@ -112,8 +118,6 @@ def main(base_path):
   )
 
   # Save the bucketizer
-  arrival_bucketizer_path = "{}/models/arrival_bucketizer_2.0.bin".format(base_path)
-  arrival_bucketizer.write().overwrite().save(arrival_bucketizer_path)
   arrival_bucketizer.write().overwrite().save("s3a://lakehouse/models/arrival_bucketizer_2.0.bin")
 
   # Apply the bucketizer
@@ -139,11 +143,6 @@ def main(base_path):
     ml_bucketized_features = ml_bucketized_features.drop(column)
 
     # Save the pipeline model
-    string_indexer_output_path = "{}/models/string_indexer_model_{}.bin".format(
-      base_path,
-      column
-    )
-    string_indexer_model.write().overwrite().save(string_indexer_output_path)
     string_indexer_model.write().overwrite().save(f"s3a://lakehouse/models/string_indexer_model_{column}.bin")
 
   # Combine continuous, numeric fields with indexes of nominal ones
@@ -161,8 +160,6 @@ def main(base_path):
   final_vectorized_features = vector_assembler.transform(ml_bucketized_features)
 
   # Save the numeric vector assembler
-  vector_assembler_path = "{}/models/numeric_vector_assembler.bin".format(base_path)
-  vector_assembler.write().overwrite().save(vector_assembler_path)
   vector_assembler.write().overwrite().save("s3a://lakehouse/models/numeric_vector_assembler.bin")
 
   # Drop the index columns
@@ -181,13 +178,12 @@ def main(base_path):
     maxBins=4657,
     maxMemoryInMB=1024
   )
-  model = rfc.fit(final_vectorized_features)
 
-  # Save the new model over the old one
-  model_output_path = "{}/models/spark_random_forest_classifier.flight_delays.5.0.bin".format(
-    base_path
-  )
-  model.write().overwrite().save(model_output_path)
+  final_vectorized_features = final_vectorized_features.repartition(8).cache()
+  final_vectorized_features.count()
+  print("Partitions in training DF:", final_vectorized_features.rdd.getNumPartitions())
+
+  model = rfc.fit(final_vectorized_features)
 
   # Guardar el modelo también en el Lakehouse (MinIO)
   model.write().overwrite().save("s3a://lakehouse/models/spark_random_forest_classifier.flight_delays.5.0.bin")
