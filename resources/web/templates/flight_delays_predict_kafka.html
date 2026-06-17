@@ -1,14 +1,11 @@
 {% extends "layout.html" %}
 {% block body %}
-  <!-- Navigation guide -->
   / <a href="/flights/delays/predict_kafka">Flight Delay Prediction with Kafka</a>
 
   <p class="lead" style="margin: 10px; margin-left: 0px;">
-    <!-- Airline Name and website-->
     Predicting Flight Delays with Kafka
   </p>
 
-  <!-- Generate form from search_config and request args -->
   <form id="flight_delay_classification" action="/flights/delays/predict/classify_realtime" method="post">
     {% for item in form_config %}
       {% if 'label' in item %}
@@ -16,32 +13,64 @@
       {% else %}
         <label for="{{item['field']}}">{{item['field']}}</label>
       {% endif %}
-        <input name="{{item['field']}}" style="width: 36px; margin-right: 10px;" 
+      <input
+        name="{{item['field']}}"
+        style="width: 80px; margin-right: 10px;"
         {% if 'value' in item %}
           value="{{item['value']}}"
         {% endif %}
-        ></input>
+      ></input>
     {% endfor %}
     <button type="submit" class="btn btn-xs btn-default" style="height: 25px">Submit</button>
   </form>
 
   <div style="margin-top: 10px;">
-      <p>Delay: <span id="result" style="display: inline-block;"></span></p>
+    <p>Delay: <span id="result" style="display: inline-block;"></span></p>
   </div>
 
-  <!-- WebSocket: recibe la prediccion empujada por el servidor -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.4/socket.io.min.js"></script>
+  <script src="[cdnjs.cloudflare.com](https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.4/socket.io.min.js)"></script>
   <script>
     var socket = io();
+    var currentRequestId = null;
+
     socket.on('prediction_result', function(data) {
-      var labels = {0: 'On time', 1: 'Slight delay', 2: 'Very late', 3: 'Extremely late'};
-      document.getElementById('result').innerHTML = labels[data.Prediction] || data.Prediction;
+      if (!currentRequestId) return;
+      if (data.UUID !== currentRequestId) return;
+
+      var labels = {
+        0: 'On time',
+        1: 'Slight delay',
+        2: 'Very late',
+        3: 'Extremely late'
+      };
+
+      var pred = (data.Prediction !== undefined) ? data.Prediction : data.prediction;
+      document.getElementById('result').innerHTML = labels[pred] || pred;
     });
-    document.getElementById('flight_delay_classification').onsubmit = function(e) {
+
+    document.getElementById('flight_delay_classification').onsubmit = async function(e) {
       e.preventDefault();
       document.getElementById('result').innerHTML = 'Processing...';
+
       var formData = new FormData(this);
-      fetch('/flights/delays/predict/classify_realtime', {method: 'POST', body: formData});
+
+      try {
+        const response = await fetch('/flights/delays/predict/classify_realtime', {
+          method: 'POST',
+          body: formData
+        });
+
+        const data = await response.json();
+
+        if (data.status === 'OK') {
+          currentRequestId = data.id;
+        } else {
+          document.getElementById('result').innerHTML = 'Request error';
+        }
+      } catch (err) {
+        console.error(err);
+        document.getElementById('result').innerHTML = 'Connection error';
+      }
     };
   </script>
 {% endblock %}

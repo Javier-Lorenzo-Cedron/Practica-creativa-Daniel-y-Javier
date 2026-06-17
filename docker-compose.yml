@@ -11,6 +11,23 @@ services:
       timeout: 10s
       retries: 15
 
+  cassandra-init:
+    image: python:3.11-slim
+    container_name: cassandra-init
+    depends_on:
+      cassandra:
+        condition: service_healthy
+    working_dir: /app
+    volumes:
+      - ./:/app
+    restart: "no"
+    entrypoint: ["/bin/bash", "-c"]
+    command: >
+      "
+      pip install --no-cache-dir cassandra-driver &&
+      python /app/resources/init_cassandra.py
+      "
+
   minio:
     image: minio/minio
     container_name: minio
@@ -24,6 +41,21 @@ services:
     command: server /data --console-address ":9001"
     volumes:
       - minio_data:/data
+
+  minio-init:
+    image: minio/mc
+    container_name: minio-init
+    depends_on:
+      - minio
+    restart: "no"
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      "
+      sleep 8;
+      mc alias set local http://minio:9000 admin admin123;
+      mc mb --ignore-existing local/lakehouse;
+      mc ls local;
+      "
 
   kafka:
     image: apache/kafka:4.2.0
@@ -42,6 +74,21 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
 
+  kafka-init:
+    image: apache/kafka:4.2.0
+    container_name: kafka-init
+    depends_on:
+      - kafka
+    restart: "no"
+    entrypoint: ["/bin/bash", "-c"]
+    command: >
+      "
+      sleep 15;
+      /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --bootstrap-server kafka:9092 --replication-factor 1 --partitions 1 --topic flight-delay-ml-request;
+      /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --bootstrap-server kafka:9092 --replication-factor 1 --partitions 1 --topic flight-delay-ml-response;
+      /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --list;
+      "
+
   web:
     build: ./resources/web
     container_name: web
@@ -57,6 +104,10 @@ services:
         condition: service_healthy
       kafka:
         condition: service_started
+      kafka-init:
+        condition: service_completed_successfully
+      cassandra-init:
+        condition: service_completed_successfully
 
   spark-master:
     image: apache/spark:4.1.1-scala2.13-java21-python3-r-ubuntu
@@ -90,6 +141,33 @@ services:
       - spark-master
     command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
 
+  iceberg-init:
+    build:
+      context: .
+      dockerfile: Dockerfile.spark-train
+    container_name: iceberg-init
+    depends_on:
+      - spark-master
+      - spark-worker-1
+      - spark-worker-2
+      - minio-init
+    working_dir: /opt/project
+    volumes:
+      - ./:/opt/project
+    environment:
+      - MINIO_ENDPOINT=http://minio:9000
+      - MINIO_ACCESS_KEY=admin
+      - MINIO_SECRET_KEY=admin123
+      - MINIO_BUCKET=lakehouse
+    restart: "no"
+    command: >
+      /opt/spark/bin/spark-submit
+      --master spark://spark-master:7077
+      --deploy-mode client
+      --conf spark.jars.ivy=/tmp/.ivy2
+      --packages org.apache.iceberg:iceberg-spark-runtime-4.1_2.13:1.11.0,org.apache.hadoop:hadoop-aws:3.4.1
+      spark_iceberg.py
+
   # Job de prediccion. Solo arranca bajo demanda (perfil "job"), una vez
   # que los datos, topics y modelos estan listos:
   #   docker compose --profile job up -d spark-job
@@ -103,6 +181,9 @@ services:
       - spark-worker-2
       - kafka
       - cassandra
+      - kafka-init
+      - cassandra-init
+      - iceberg-init
     volumes:
       - ./flight_prediction/target/scala-2.13:/app/jar
       - ./models:/app/models
@@ -132,7 +213,7 @@ services:
       - spark-master
       - spark-worker-1
       - spark-worker-2
-      - minio
+      - iceberg-init
     volumes:
       - ./resources:/opt/spark-apps/resources
       - ./models:/app/models
