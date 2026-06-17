@@ -117,9 +117,10 @@ Debe existir el bucket *lakehouse*, y dentro deberían haberse creado los datos 
 ==========================================================================
 ## 8. Entrenar los modelos (models/ en el Lakehouse)
 ==========================================================================
+
 Ejecuta:
 
-    docker compose --profile train up --build spark-train
+    docker compose --profile train up --build spark-train -d
 
 Si quieres seguir los logs:
     
