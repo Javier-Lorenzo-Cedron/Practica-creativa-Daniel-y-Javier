@@ -1,16 +1,14 @@
 # Practica-creativa-Daniel-y-Javier
 
-Guía para desplegar el escenario completo partiendo solo de la carpeta del
-proyecto, SIN las carpetas `models/`, `data/` ni `flight_prediction/target/`
-(se regeneran o descargan durante el despliegue).
-
-Todo el escenario corre en Docker mediante un único `docker-compose.yml`:
-Cassandra, MinIO, Kafka, el servidor web (Flask) y un cluster Spark
-(1 master + 2 workers). El job de predicción se ejecuta también en el cluster,
-como un servicio bajo demanda (perfil "job").
-
-IMPORTANTE: sigue los pasos EN ORDEN. Cada paso prepara lo que el siguiente
-necesita (hay dependencias entre datos, modelos y el job).
+Guía para desplegar el escenario completo partiendo solo de la carpeta del proyecto, **SIN las carpetas `models/`, `data/` ni `flight_prediction/target/`** (se regeneran o descargan durante el proceso).
+Todo el escenario corre en Docker mediante un único `docker-compose.yml`: **Cassandra, MinIO, Kafka, el servidor web (Flask) y un cluster Spark** (1 master + 2 workers). El **job de predicción** se ejecuta también en el cluster, como un servicio bajo demanda (perfil `"job"`).
+Además, parte de la preparación se hace ya de forma automática al levantar la infraestructura:
+- `kafka-init` crea los topics de Kafka
+- `cassandra-init` crea el keyspace, las tablas e importa las distancias
+- `minio-init` crea el bucket `lakehouse`
+- `iceberg-init` crea la tabla Iceberg en MinIO
+## Importante
+Sigue los pasos **en orden**. Cada paso prepara lo que el siguiente necesita.
 
 ==========================================================================
 ## 0. Requisitos previos en la máquina destino
@@ -58,22 +56,25 @@ flight_prediction/target/scala-2.13/flight_prediction_2.13-0.1.jar
 monta como volumen en el contenedor.)
 
 ==========================================================================
-## 4. Levantar la infraestructura (todo menos el job)
+## 4. Levantar la infraestructura base (todo menos el train y el job)
 ==========================================================================
     
     docker compose up -d
 
-Levanta: cassandra, minio, kafka, web, spark-master, spark-worker-1,
-spark-worker-2. El servicio spark-job NO arranca aquí (tiene perfil "job").
+Levanta: cassandra, cassandra-init, minio, minio-init, kafka, kafka-init, web, spark-master, spark-worker-1, spark-worker-2, iceberg-init. No arranca todavía spark-job, porque ese servicio va bajo perfil "job" y se lanza después, cuando ya existan los modelos.
 
 Verifica que están TODOS arriba:
 
     docker compose ps
 
-Espera a que cassandra aparezca como "Up (healthy)" antes de seguir (2-3 min).
+Debes esperar a que:
+- cassandra aparezca como healthy
+- cassandra-init termine en estado Exited (0)
+- kafka-init termine en estado Exited (0)
+- minio-init termine en estado Exited (0)
+- iceberg-init termine en estado Exited (0)
 
-Si faltara alguno (p. ej. web a veces no arranca al primer intento al
-encender la VM), levántalo explícitamente:
+Si faltara alguno, levántalo explícitamente:
 
     docker compose up -d <contenedor>
     
@@ -84,62 +85,49 @@ Verifica el cluster Spark en el navegador:
 Debe aparecer el master ALIVE con 2 workers registrados.
 
 ==========================================================================
-## 5. Crear los topics de Kafka
+## 5. Verificar los topics de Kafka
 ==========================================================================
+Puedes comprobar que los topics existen:
     
-    docker exec kafka /opt/kafka/bin/kafka-topics.sh --create --bootstrap-server localhost:9092 --replication-factor 1 --partitions 1 --topic flight-delay-ml-request
-    docker exec kafka /opt/kafka/bin/kafka-topics.sh --create --bootstrap-server localhost:9092 --replication-factor 1 --partitions 1 --topic flight-delay-ml-response
+    docker exec kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --list
 
-Verifica:
+Deben aparecer:
+- flight-delay-ml-request
+- flight-delay-ml-response
+==========================================================================
+## 6. Verificar Cassandra
+==========================================================================
+
+Puedes comprobar que las distancias se han cargado (debe dar ~4696):
+
+    docker exec cassandra cqlsh -e "SELECT COUNT(*) FROM agile_data_science.origin_dest_distances;"
+
+==========================================================================
+## 7. Verificar MinIO
+==========================================================================
+
+Abre http://localhost:9001
+
+Credenciales por defecto:
+- usuario: admin
+- contraseña: admin123
+
+Debe existir el bucket *lakehouse*, y dentro deberían haberse creado los datos de Iceberg.
+
+==========================================================================
+## 8. Entrenar los modelos (models/ en el Lakehouse)
+==========================================================================
+Ejecuta:
+
+    docker compose --profile train up --build spark-train
+
+Si quieres seguir los logs:
     
-    docker exec kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list
+    docker compose logs -f spark-train
 
-==========================================================================
-## 6. Preparar Cassandra (keyspace, tablas e importar distancias)
-==========================================================================
+Este proceso tarda por lo general varios minutos. Puedes seguirlo también en http://localhost:8080 viendo los workers spark (suele tardar unos 10-20 segundos en aparecer como running application)
 
-Crear keyspace y tablas:
-
-    docker exec cassandra cqlsh -e "CREATE KEYSPACE IF NOT EXISTS agile_data_science WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1}; USE agile_data_science; CREATE TABLE IF NOT EXISTS origin_dest_distances (origin text, dest text, distance int, PRIMARY KEY (origin, dest)); CREATE TABLE IF NOT EXISTS flight_delay_predictions (uuid text PRIMARY KEY, origin text, dest text, prediction int, timestamp timestamp);"
-
-Importar las distancias (con el entorno activado; tarda ~2 min):
-
-    source env/bin/activate
-    python3 import_to_cassandra.py
-
-Verifica (debe dar ~4696):
-    
-    docker exec cassandra cqlsh -e "SELECT COUNT(*) FROM agile_data_science.origin_dest_distances"
-
-==========================================================================
-## 7. Crear la tabla Iceberg en el Lakehouse (MinIO)
-==========================================================================
-
-El bucket 'lakehouse' lo crea MinIO al arrancar. Si no existiera, créalo en
-la consola web (http://localhost:9001, admin/admin123) o con:
-    
-    docker exec minio mc alias set local http://localhost:9000 admin admin123
-    
-    docker exec minio mc mb --ignore-existing local/lakehouse
-
-Crear la tabla Iceberg con los datos de vuelos:
-
-    spark-submit --packages org.apache.iceberg:iceberg-spark-runtime-4.1_2.13:1.11.0,org.apache.hadoop:hadoop-aws:3.4.1 spark_iceberg.py
-
-Debe terminar con "Tabla Iceberg creada en MinIO correctamente".
-Verifica en http://localhost:9001 -> lakehouse -> warehouse/
-
-==========================================================================
-## 8. Entrenar los modelos (genera models/ en local y en el Lakehouse)
-==========================================================================
-
-Lee los datos del Lakehouse y guarda los modelos en local (carpeta models/)
-y en MinIO. Tarda varios minutos (entrena un RandomForest sobre 457k filas):
-
-    spark-submit --packages org.apache.iceberg:iceberg-spark-runtime-4.1_2.13:1.11.0,org.apache.hadoop:hadoop-aws:3.4.1 resources/train_spark_mllib_model.py .
-
-Al terminar, comprueba que existe la carpeta models/ con los .bin:
-    ls models/
+Cuando termine puede comprobar en MiniO (http://localhost:9001) que la carpeta models está creada con todos los modelos dentro .bin
 
 (IMPRESCINDIBLE antes del paso 9: el cluster Spark monta models/ como volumen
 y el job carga los modelos desde ahí.)
@@ -177,9 +165,8 @@ Verificar que se guardó en Cassandra:
 ## Orden de dependencias (resumen)
 ==========================================================================
 
-env Python -> descargar data -> compilar JAR -> docker compose up (infra) ->
-topics Kafka -> Cassandra (keyspace+tablas+distancias) ->
-Iceberg (datos en Lakehouse) -> entrenar modelos -> lanzar spark-job -> probar
+env Python -> descargar data -> compilar JAR -> docker compose up -d ->
+esperar inicialización automática -> entrenar modelos -> lanzar spark-job -> probar la aplicación
 
 ==========================================================================
 ## Notas
