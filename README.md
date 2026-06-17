@@ -172,15 +172,12 @@ esperar inicialización automática -> entrenar modelos -> lanzar spark-job -> p
 ## Notas
 ==========================================================================
 
-- Cassandra y Kafka NO tienen volumen: si se apagan o se recrean los
-  contenedores, hay que repetir los pasos 5 y 6 (topics y datos de Cassandra)
-  al volver a arrancar. MinIO sí tiene volumen (minio_data), conserva los
-  datos Iceberg y los modelos entre reinicios.
+- Cassandra y Kafka no tienen volumen persistente. Si se eliminan o recrean sus contenedores, habrá     que volver a levantar la infraestructura para que sus servicios *-init rehagan la inicialización.
+- MinIO sí tiene volumen persistente (minio_data), así que conserva el Lakehouse y los modelos         almacenados en S3/MinIO entre reinicios.
 - El servicio spark-job monta como volúmenes el JAR
   (flight_prediction/target/scala-2.13) y la carpeta models/. Por eso los
   pasos 3 y 8 deben completarse ANTES del paso 9.
-- Los workers del cluster también montan models/, porque cada executor lee
-  los modelos en el worker donde se ejecuta la tarea.
+- Los workers del cluster también montan models/, porque los executors pueden necesitar acceder a esos modelos durante la ejecución distribuida.
 - El job está parametrizado por variables de entorno (SPARK_MASTER,
   KAFKA_BROKER, CASSANDRA_HOST, BASE_PATH), definidas en el servicio
   spark-job del docker-compose para apuntar a los nombres de servicio.
