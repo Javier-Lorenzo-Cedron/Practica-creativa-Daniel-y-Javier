@@ -45,25 +45,33 @@ cd Practica-creativa-Daniel-y-Javier
 
 Actualizar paquetes:
 
+  ```bash
   sudo apt update && sudo apt upgrade -y
+  ```
 
 Instalar herramientas base:
 
+  ```bash
   sudo apt install -y git curl openjdk-17-jdk python3.10 python3.10-venv python3-pip docker.io ca-certificates gnupg lsb-release
+  ```
 
 Habilitar y arrancar Docker:
 
+  ```bash
   sudo systemctl enable docker
   sudo systemctl start docker
   sudo usermod -aG docker $USER
+  ```
 
 Importante: tras añadir el usuario al grupo docker, conviene cerrar la sesión SSH y volver a entrar.
 Comprobar instalación:
 
+  ```bash
   docker --version
   docker compose version
   java -version
   python3.10 --version
+  ```
 
 ---
 
@@ -71,15 +79,19 @@ Comprobar instalación:
 
 Añadir repositorios:
 
+  ```bash
   echo "deb https://repo.scala-sbt.org/scalasbt/debian all main" | sudo tee /etc/apt/sources.list.d/sbt.list
   echo "deb https://repo.scala-sbt.org/scalasbt/debian /" | sudo tee /etc/apt/sources.list.d/scalasbt_old.list
   curl -fsSL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x99E82A75642AC823" | gpg --dearmor | sudo tee /etc/apt/trusted.gpg.d/sbt.gpg > /dev/null
   sudo apt update
   sudo apt install -y sbt
+  ```
 
 Comprobar:
 
- sbt --version
+  ```bash
+  sbt --version
+  ```
 
 ---
 
@@ -87,16 +99,20 @@ Comprobar:
 
 Desde la raíz del proyecto:
 
+  ```bash
   python3.10 -m venv env
   source env/bin/activate
   pip install --upgrade pip
   pip install -r requirements.txt
+  ```
 
 ---
 
 ## 6. Descargar los datos
 
+  ```bash
   bash resources/download_data.sh
+  ```
 
 Se debe generar la carpeta data/ con estos archivos:
 - simple_flight_delay_features.jsonl.bz2
@@ -104,7 +120,9 @@ Se debe generar la carpeta data/ con estos archivos:
 
 Comprobación:
 
+  ```bash
   ls data
+  ```
 
 ---
 
@@ -112,13 +130,17 @@ Comprobación:
 
 Entrar en el subproyecto y generar el JAR:
 
+  ```bash
   cd flight_prediction
   sbt package
   cd ..
+  ```
 
 Comprobar que existe el JAR:
 
+  ```bash
   ls flight_prediction/target/scala-2.13/
+  ```
 
 ---
 
@@ -126,11 +148,15 @@ Comprobar que existe el JAR:
 
 Arrancar los servicios principales:
 
+  ```bash
   docker compose up -d
+  ```
 
 Comprobar estado:
 
+  ```bash
   docker compose ps
+  ```
 
 Deben quedar correctamente levantados:
 - cassandra
@@ -153,7 +179,9 @@ Y deben completar correctamente los servicios de inicialización:
 
 **Kafka**:
 
+  ```bash
   docker exec kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --list
+  ```
 
 Deben aparecer los topics:
 - flight-delay-ml-request
@@ -161,27 +189,36 @@ Deben aparecer los topics:
 
 **Cassandra**:
 
+  ```bash
   docker exec cassandra cqlsh -e "SELECT COUNT(*) FROM agile_data_science.origin_dest_distances;"
+  ```
 
 Debe devolver aproximadamente 4696.
 
 **Spark**:
 En local dentro de la VM, la interfaz debe responder en:
 
+  ```bash
   curl http://localhost:8080
+  ```
 
 **MiniO**:
 En local dentro de la VM:
 
+  ```bash
   curl http://localhost:9001
+  ```
 
 ---
 
 ## 10. Entrenar los modelos
 
+  ```bash
   docker compose --profile train up --build spark-train -d
-
+  ```
+  ```bash
   docker compose logs -f spark-train
+  ```
 
 Cuando termine, los modelos deben haberse creado en MinIO.
 
@@ -189,9 +226,12 @@ Cuando termine, los modelos deben haberse creado en MinIO.
 
 ## 11. Lanzar el job de predicción
 
+  ```bash
   docker compose --profile job up -d spark-job
-
+  ```
+  ```bash
   docker compose logs -f spark-job
+  ```
 
 ---
 
@@ -214,7 +254,9 @@ Por ejemplo, si la regla se aplica a la etiqueta *practica-creativa*, la instanc
 
 Desde la consola de la VM:
 
+  ```bash
   curl ifconfig.me
+  ```
 
 ---
 
@@ -224,15 +266,21 @@ Sustituye IP_EXTERNA por la IP pública real de tu VM.
 
 **Aplicación web**
 
+  ```bash
   http://IP_EXTERNA:5001/flights/delays/predict_kafka
+  ```
 
 **Spark UI**
 
+  ```bash
   http://IP_EXTERNA:8080
+  ```
 
 **MinIO**
 
+  ```bash
   http://IP_EXTERNA:9001
+  ```
 
 Credenciales por defecto de MinIO:
 - usuario: admin
@@ -244,17 +292,23 @@ Credenciales por defecto de MinIO:
 
 Dentro de la VM, esta ruta debe responder correctamente:
 
+  ```bash
   curl -i http://localhost:5001/flights/delays/predict_kafka
+  ```
 
 Debe devolver:
 
+  ```bash
   HTTP/1.1 200 OK
+  ```
 
 ---
 
 ## 16. Probar la predicción completa
 
+  ```bash
   http://IP_EXTERNA:5001/flights/delays/predict_kafka
+  ```
 
 Pulsar submit y esperar a que aparezca la predicción sin recargar la página.
 
@@ -264,7 +318,9 @@ Pulsar submit y esperar a que aparezca la predicción sin recargar la página.
 
 Tras realizar una predicción:
 
+  ```bash
   docker exec cassandra cqlsh -e "SELECT * FROM agile_data_science.flight_delay_predictions LIMIT 50;"
+  ```
 
 ---
 
