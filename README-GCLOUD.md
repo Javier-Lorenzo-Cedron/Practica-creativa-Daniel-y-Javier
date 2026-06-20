@@ -34,7 +34,7 @@ Conéctate por SSH a la VM y clona el proyecto:
 
 ```bash
 cd ~
-git clone [github.com](https://github.com/Javier-Lorenzo-Cedron/Practica-creativa-Daniel-y-Javier.git)
+git clone https://github.com/Javier-Lorenzo-Cedron/Practica-creativa-Daniel-y-Javier.git
 cd Practica-creativa-Daniel-y-Javier
 
 ---
@@ -69,9 +69,9 @@ Comprobar instalación:
 
 Añadir repositorios:
 
-  echo "deb [repo.scala-sbt.org](https://repo.scala-sbt.org/scalasbt/debian) all main" | sudo tee /etc/apt/sources.list.d/sbt.list
-  echo "deb [repo.scala-sbt.org](https://repo.scala-sbt.org/scalasbt/debian) /" | sudo tee /etc/apt/sources.list.d/scalasbt_old.list
-  curl -fsSL "[keyserver.ubuntu.com](https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x99E82A75642AC823)" | gpg --dearmor | sudo tee /etc/apt/trusted.gpg.d/sbt.gpg > /dev/null
+  echo "deb https://repo.scala-sbt.org/scalasbt/debian all main" | sudo tee /etc/apt/sources.list.d/sbt.list
+  echo "deb https://repo.scala-sbt.org/scalasbt/debian /" | sudo tee /etc/apt/sources.list.d/scalasbt_old.list
+  curl -fsSL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x99E82A75642AC823" | gpg --dearmor | sudo tee /etc/apt/trusted.gpg.d/sbt.gpg > /dev/null
   sudo apt update
   sudo apt install -y sbt
 
