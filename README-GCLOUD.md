@@ -35,7 +35,8 @@ Conéctate por SSH a la VM y clona el proyecto:
 ```bash
 cd ~
 git clone https://github.com/Javier-Lorenzo-Cedron/Practica-creativa-Daniel-y-Javier.git
-cd Practica-creativa-Daniel-y-Javier
+cd Practica-creativa-Daniel-y-Javier``` 
+
 
 ---
 
