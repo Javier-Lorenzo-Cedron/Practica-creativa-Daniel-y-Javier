@@ -48,13 +48,16 @@ services:
     depends_on:
       - minio
     restart: "no"
+    volumes:
+      - ./data:/minio-data
     entrypoint: ["/bin/sh", "-c"]
     command: >
       "
       sleep 8;
       mc alias set local http://minio:9000 admin admin123;
       mc mb --ignore-existing local/lakehouse;
-      mc ls local;
+      mc cp /minio-data/simple_flight_delay_features.jsonl.bz2 local/lakehouse/raw/simple_flight_delay_features.jsonl.bz2;
+      mc ls local/lakehouse/raw/;
       "
 
   kafka:
@@ -147,10 +150,14 @@ services:
       dockerfile: Dockerfile.spark-train
     container_name: iceberg-init
     depends_on:
-      - spark-master
-      - spark-worker-1
-      - spark-worker-2
-      - minio-init
+      spark-master:
+        condition: service_started
+      spark-worker-1:
+        condition: service_started
+      spark-worker-2:
+        condition: service_started
+      minio-init:
+        condition: service_completed_successfully
     working_dir: /opt/project
     volumes:
       - ./:/opt/project
@@ -172,7 +179,9 @@ services:
   # que los datos, topics y modelos estan listos:
   #   docker compose --profile job up -d spark-job
   spark-job:
-    image: apache/spark:4.1.1-scala2.13-java21-python3-r-ubuntu
+    build:
+      context: .
+      dockerfile: Dockerfile.spark-job
     container_name: spark-job
     profiles: ["job"]
     depends_on:
@@ -198,8 +207,9 @@ services:
     command: >
       /opt/spark/bin/spark-submit
       --master spark://spark-master:7077
-      --conf spark.jars.ivy=/tmp/.ivy2
-      --packages org.apache.spark:spark-sql-kafka-0-10_2.13:4.1.1,com.datastax.oss:java-driver-core:4.17.0,org.apache.hadoop:hadoop-aws:3.4.1,com.amazonaws:aws-java-sdk-bundle:1.12.262
+      --conf spark.jars.ivy=/opt/ivy
+      --packages org.apache.spark:spark-sql-kafka-0-10_2.13:4.1.1,com.datastax.oss:java-driver-core:4.17.0,org.apache.hadoop:hadoop-aws:3.4.1
+      --exclude-packages org.wildfly.openssl:wildfly-openssl
       --class es.upm.dit.ging.predictor.MakePrediction
       /app/jar/flight_prediction_2.13-0.1.jar
 
@@ -210,10 +220,14 @@ services:
     container_name: spark-train
     profiles: ["train"]
     depends_on:
-      - spark-master
-      - spark-worker-1
-      - spark-worker-2
-      - iceberg-init
+      spark-master:
+        condition: service_started
+      spark-worker-1:
+        condition: service_started
+      spark-worker-2:
+        condition: service_started
+      iceberg-init:
+        condition: service_completed_successfully
     volumes:
       - ./resources:/opt/spark-apps/resources
       - ./models:/app/models

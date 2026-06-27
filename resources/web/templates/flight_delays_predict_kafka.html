@@ -28,7 +28,7 @@
     <p>Delay: <span id="result" style="display: inline-block;"></span></p>
   </div>
 
-  <script src="[cdnjs.cloudflare.com](https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.4/socket.io.min.js)"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.4/socket.io.min.js"></script>
   <script>
     var socket = io();
     var currentRequestId = null;
@@ -53,6 +53,7 @@
       document.getElementById('result').innerHTML = 'Processing...';
 
       var formData = new FormData(this);
+      formData.append('socket_id', socket.id);
 
       try {
         const response = await fetch('/flights/delays/predict/classify_realtime', {

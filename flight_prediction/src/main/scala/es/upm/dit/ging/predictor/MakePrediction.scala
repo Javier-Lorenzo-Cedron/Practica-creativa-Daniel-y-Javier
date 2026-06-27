@@ -22,7 +22,7 @@ object MakePrediction {
       .builder
       .appName("StructuredNetworkWordCount")
       .master(sparkMaster)
-      .config("spark.hadoop.fs.s3a.endpoint", sys.env.getOrElse("MINIO_ENDPOINT", "[minio](http://minio:9000)"))
+      .config("spark.hadoop.fs.s3a.endpoint", sys.env.getOrElse("MINIO_ENDPOINT", "http://minio:9000"))
       .config("spark.hadoop.fs.s3a.access.key", sys.env.getOrElse("MINIO_ACCESS_KEY", "admin"))
       .config("spark.hadoop.fs.s3a.secret.key", sys.env.getOrElse("MINIO_SECRET_KEY", "admin123"))
       .config("spark.hadoop.fs.s3a.path.style.access", "true")

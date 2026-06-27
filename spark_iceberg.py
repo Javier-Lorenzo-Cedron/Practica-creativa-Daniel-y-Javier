@@ -26,7 +26,7 @@ spark = (
 
 spark.sparkContext.setLogLevel("WARN")
 
-df = spark.read.json("data/simple_flight_delay_features.jsonl.bz2")
+df = spark.read.json(f"s3a://{BUCKET}/raw/simple_flight_delay_features.jsonl.bz2")
 print(f"Registros cargados: {df.count()}")
 
 spark.sql("CREATE NAMESPACE IF NOT EXISTS lakehouse.flights_db")
