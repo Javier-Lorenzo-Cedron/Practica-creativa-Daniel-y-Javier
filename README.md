@@ -52,7 +52,7 @@ Una vez finalizado, continúa con el paso 4 de esta guía.
 Si prefieres instalar todo manualmente, sigue los pasos a continuación.
 
 ==========================================================================
-## 0. Requisitos previos en la máquina destino
+### 0. Requisitos previos en la máquina destino
 ==========================================================================
 - Docker y Docker Compose
 - Java 17 y sbt (para compilar el job de Scala)
@@ -60,7 +60,7 @@ Si prefieres instalar todo manualmente, sigue los pasos a continuación.
 - curl (para descargar los datos)
 
 ==========================================================================
-## 1. Entorno de Python
+### 1. Entorno de Python
 ==========================================================================
 
 Desde la raíz del proyecto (practica_creativa/):
@@ -73,7 +73,7 @@ Desde la raíz del proyecto (practica_creativa/):
 pasos 7 y 8.)
 
 ==========================================================================
-## 2. Descargar los datos (genera la carpeta data/)
+### 2. Descargar los datos (genera la carpeta data/)
 ==========================================================================
     
     bash resources/download_data.sh
@@ -83,7 +83,7 @@ Debe dejar en data/:
 - origin_dest_distances.jsonl
 
 ==========================================================================
-## 3. Compilar el job de Scala (genera flight_prediction/target/)
+### 3. Compilar el job de Scala (genera flight_prediction/target/)
 ==========================================================================
     
     cd flight_prediction
