@@ -10,6 +10,47 @@ Además, parte de la preparación se hace ya de forma automática al levantar la
 ## Importante
 Sigue los pasos **en orden**. Cada paso prepara lo que el siguiente necesita.
 
+## Instalación automática (recomendado)
+
+El script `setup.sh` automatiza todos los pasos previos a levantar la infraestructura Docker. Detecta tu sistema operativo e instala/verifica todas las dependencias necesarias.
+
+### Sistemas soportados
+
+- Ubuntu / Debian
+- Fedora
+- CentOS / RHEL
+- Arch Linux
+- macOS (requiere Homebrew)
+
+### Uso
+
+
+**Descargar el script (si no tienes el repositorio clonado)**
+
+    curl -O https://raw.githubusercontent.com/Javier-Lorenzo-Cedron/Practica-creativa-Daniel-y-Javier/main/setup.sh
+
+
+**Dar permisos y ejecutar**
+
+    chmod +x setup.sh
+
+    ./setup.sh
+
+### ¿Qué hace el script?
+Paso	Acción
+0	Instala Docker, Java 17, sbt, Python 3.10+, curl y git si faltan
+1	Clona el repositorio (si no existe)
+2	Crea el entorno virtual Python e instala dependencias (requirements.txt)
+3	Descarga los datos (resources/download_data.sh)
+4	Compila el JAR de Scala (sbt package)
+
+El script es idempotente: puede ejecutarse múltiples veces sin problemas. Si algo ya está instalado o completado, lo detecta y continúa.
+
+Una vez finalizado, continúa con el paso 4 de esta guía.
+
+## Instalación manual
+Si prefieres instalar todo manualmente, sigue los pasos a continuación.
+
 ==========================================================================
 ## 0. Requisitos previos en la máquina destino
 ==========================================================================
