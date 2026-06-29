@@ -1,0 +1,16 @@
+FROM apache/spark:4.1.1-scala2.13-java21-python3-r-ubuntu
+USER root
+
+# Pre-descarga los paquetes en la imagen para no volver a bajarlos en cada arranque
+RUN mkdir -p /opt/ivy && \
+    printf 'from pyspark.sql import SparkSession\nSparkSession.builder.getOrCreate().stop()\n' > /tmp/prefetch.py && \
+    /opt/spark/bin/spark-submit \
+        --master local[1] \
+        --conf spark.jars.ivy=/opt/ivy \
+        --packages org.apache.spark:spark-sql-kafka-0-10_2.13:4.1.1,com.datastax.oss:java-driver-core:4.17.0,org.apache.hadoop:hadoop-aws:3.4.1 \
+        --exclude-packages org.wildfly.openssl:wildfly-openssl \
+        /tmp/prefetch.py && \
+    rm /tmp/prefetch.py && \
+    chown -R spark:spark /opt/ivy
+
+USER spark

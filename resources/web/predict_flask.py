@@ -1,7 +1,7 @@
 import eventlet
 eventlet.monkey_patch()
 
-import sys, os, re, json, uuid, datetime
+import sys, os, re, json, uuid, datetime, threading
 from flask import Flask, render_template, request
 from flask_socketio import SocketIO
 from pymongo import MongoClient
@@ -44,6 +44,10 @@ producer = KafkaProducer(
 PREDICTION_TOPIC = 'flight-delay-ml-request'
 RESPONSE_TOPIC = 'flight-delay-ml-response'
 
+# uuid → socket_id: para enrutar cada respuesta al cliente correcto
+_pending_lock = threading.Lock()
+_pending = {}
+
 # Sesion de Cassandra para leer distancias
 cassandra_cluster = Cluster([os.getenv("CASSANDRA_HOST", "127.0.0.1")])
 cassandra_session = cassandra_cluster.connect()
@@ -65,8 +69,14 @@ def kafka_consumer_task():
     for message in consumer:
         try:
             prediction = json.loads(message.value.decode('utf-8'))
+            uid = prediction.get('UUID')
             print("Prediccion recibida desde Kafka response:", prediction)
-            socketio.emit('prediction_result', prediction)
+            with _pending_lock:
+                sid = _pending.pop(uid, None)
+            if sid:
+                socketio.emit('prediction_result', prediction, room=sid)
+            else:
+                socketio.emit('prediction_result', prediction)
         except Exception as e:
             print("Error procesando mensaje de respuesta Kafka:", e)
 
@@ -548,6 +558,11 @@ def classify_flight_delays_realtime():
 
     unique_id = str(uuid.uuid4())
     prediction_features['UUID'] = unique_id
+
+    socket_id = request.form.get('socket_id', '')
+    if socket_id:
+        with _pending_lock:
+            _pending[unique_id] = socket_id
 
     print("Enviando peticion de prediccion a Kafka:", prediction_features)
 
