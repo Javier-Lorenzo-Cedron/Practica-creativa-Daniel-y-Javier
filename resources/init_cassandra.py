@@ -41,20 +41,5 @@ session.execute("""
     )
 """)
 
-with open("/app/data/origin_dest_distances.jsonl", "r") as f:
-    for line in f:
-        record = json.loads(line)
-        origin = record["Origin"]
-        dest = record["Dest"]
-        distance = int(record["Distance"])
-
-        session.execute(
-            """
-            INSERT INTO origin_dest_distances (origin, dest, distance)
-            VALUES (%s, %s, %s)
-            """,
-            (origin, dest, distance)
-        )
-
-print("Cassandra inicializada correctamente")
+print("Esquema de Cassandra inicializado correctamente")
 cluster.shutdown()
