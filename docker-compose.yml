@@ -46,12 +46,15 @@ services:
         condition: service_completed_successfully
     volumes:
       - ./data:/opt/nifi/nifi-current/input
+      - ./nifi/conf:/opt/nifi/nifi-current/conf
       - ./nifi/database_repository:/opt/nifi/nifi-current/database_repository
       - ./nifi/flowfile_repository:/opt/nifi/nifi-current/flowfile_repository
       - ./nifi/content_repository:/opt/nifi/nifi-current/content_repository
       - ./nifi/provenance_repository:/opt/nifi/nifi-current/provenance_repository
       - ./nifi/state:/opt/nifi/nifi-current/state
       - ./nifi/logs:/opt/nifi/nifi-current/logs
+      
+
 
 
   minio:
