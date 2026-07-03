@@ -46,6 +46,7 @@ services:
         condition: service_completed_successfully
     volumes:
       - ./data:/opt/nifi/nifi-current/input
+      - ./nifi/conf:/opt/nifi/nifi-current/conf
       - ./nifi/database_repository:/opt/nifi/nifi-current/database_repository
       - ./nifi/flowfile_repository:/opt/nifi/nifi-current/flowfile_repository
       - ./nifi/content_repository:/opt/nifi/nifi-current/content_repository
