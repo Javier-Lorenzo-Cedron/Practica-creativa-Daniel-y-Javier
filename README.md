@@ -146,12 +146,11 @@ Ve a *https://localhost:8443/nifi*:
 - usuario: admin
 - contraseña: adminadminadmin
 
-
-
-
+Si el flujo no lo tienes ya creado descárgate el archivo /nifi/config_definitiva.xml
+Después en la página de NiFi, en el operador, le das al botón de upload template y eliges el archivo que acabas de descargar. Una vez terminada la descarga buscas en la barra de arriba la opción de *Template* y la arrastras a la cuadrilla, te mostrará los diferentes templates disponibles y tu de ahí eliges el que has descargado. Una vez con el flujo configurado sólo le tienes que ir dando Start a los diferentes procesadores yendo de derecha a izquierda.
 
 ==========================================================================
-## 6. Verificar Cassandra
+## 7. Verificar Cassandra
 ==========================================================================
 
 Puedes comprobar que las distancias se han cargado (debe dar ~4696):
@@ -159,7 +158,7 @@ Puedes comprobar que las distancias se han cargado (debe dar ~4696):
     docker exec cassandra cqlsh -e "SELECT COUNT(*) FROM agile_data_science.origin_dest_distances;"
 
 ==========================================================================
-## 7. Verificar MinIO
+## 8. Verificar MinIO
 ==========================================================================
 
 Abre http://localhost:9001
@@ -171,7 +170,7 @@ Credenciales por defecto:
 Debe existir el bucket *lakehouse*, y dentro deberían haberse creado los datos de Iceberg.
 
 ==========================================================================
-## 8. Entrenar los modelos (models/ en el Lakehouse)
+## 9. Entrenar los modelos (models/ en el Lakehouse)
 ==========================================================================
 
 Ejecuta:
@@ -190,7 +189,7 @@ Cuando termine puede comprobar en MiniO (http://localhost:9001) que la carpeta m
 y el job carga los modelos desde ahí.)
 
 ==========================================================================
-## 9. Lanzar el job de predicción en el cluster (servicio spark-job)
+## 10. Lanzar el job de predicción en el cluster (servicio spark-job)
 ==========================================================================
 
 Con los datos, topics y modelos ya listos, arranca el job bajo demanda:
@@ -205,7 +204,7 @@ En http://localhost:8080 aparecerá la aplicación corriendo, con tareas
 repartidas entre los 2 workers (modo distribuido).
 
 ==========================================================================
-## 10. Probar el escenario completo
+## 11. Probar el escenario completo
 ==========================================================================
 
 Abrir en el navegador:
