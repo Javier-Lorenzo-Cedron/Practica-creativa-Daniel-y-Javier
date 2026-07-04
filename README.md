@@ -129,6 +129,7 @@ Debe aparecer el master ALIVE con 2 workers registrados.
 ==========================================================================
 ## 5. Verificar los topics de Kafka
 ==========================================================================
+
 Puedes comprobar que los topics existen:
     
     docker exec kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --list
@@ -136,6 +137,19 @@ Puedes comprobar que los topics existen:
 Deben aparecer:
 - flight-delay-ml-request
 - flight-delay-ml-response
+
+==========================================================================
+## 6. Crear flujo NiFi (si no está ya creado)
+==========================================================================
+
+Ve a *https://localhost:8443/nifi*:
+- usuario: admin
+- contraseña: adminadminadmin
+
+
+
+
+
 ==========================================================================
 ## 6. Verificar Cassandra
 ==========================================================================
