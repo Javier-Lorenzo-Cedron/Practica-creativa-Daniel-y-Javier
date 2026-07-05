@@ -41,7 +41,6 @@ kiwisolver==1.5.0
 MarkupSafe==3.0.3
 matplotlib==3.10.9
 matplotlib-inline==0.2.1
-mlflow==2.19.0
 numpy==2.2.6
 packaging==26.2
 parso==0.8.7

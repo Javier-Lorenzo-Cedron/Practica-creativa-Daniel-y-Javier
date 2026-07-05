@@ -2,4 +2,5 @@ FROM apache/spark:4.1.1-scala2.13-java21-python3-r-ubuntu
 USER root
 COPY requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt
+RUN pip install --no-cache-dir mlflow==2.19.0
 USER spark
