@@ -276,6 +276,16 @@ services:
       --packages org.apache.iceberg:iceberg-spark-runtime-4.1_2.13:1.11.0,org.apache.hadoop:hadoop-aws:3.4.1
       resources/train_spark_mllib_model.py .
 
+  mlflow:
+    image: python:3.10-slim
+    container_name: mlflow
+    command: bash -c "pip install mlflow==2.19.0 && mlflow server --host 0.0.0.0 --port 5000 \
+      --backend-store-uri sqlite:////mlflow/mlflow.db --default-artifact-root /mlflow/artifacts"
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow_data:/mlflow
 
 volumes:
   minio_data:
+  mlflow_data:

@@ -47,6 +47,11 @@ def main(base_path):
     )
     sc = spark.sparkContext
 
+  import mlflow
+  import mlflow.spark
+  mlflow.set_tracking_uri(os.environ.get("MLFLOW_TRACKING_URI", "http://mlflow:5000"))
+  mlflow.set_experiment("flight_delay_prediction")
+  mlflow.start_run()
   #
   # {
   #   "ArrDelay":5.0,"CRSArrTime":"2015-12-31T03:20:00.000-08:00","CRSDepTime":"2015-12-31T03:05:00.000-08:00",
@@ -199,6 +204,12 @@ def main(base_path):
   )
   accuracy = evaluator.evaluate(predictions)
   print("Accuracy = {}".format(accuracy))
+
+  mlflow.log_param("maxBins", 4657)
+  mlflow.log_param("maxMemoryInMB", 1024)
+  mlflow.log_metric("accuracy", accuracy)
+  mlflow.spark.log_model(model, "random_forest_model")
+  mlflow.end_run()
 
   # Check the distribution of predictions
   predictions.groupBy("Prediction").count().show()
