@@ -9,6 +9,8 @@ default_args = {
 }
 
 SPARK_SUBMIT = (
+    "export JAVA_HOME=/opt/java/openjdk && "
+    "export PATH=$JAVA_HOME/bin:$PATH && "
     "/opt/spark/bin/spark-submit "
     "--master spark://spark-master:7077 "
     "--deploy-mode client "
@@ -38,6 +40,8 @@ with DAG(
         task_id="retrain_model",
         bash_command=SPARK_SUBMIT,
         env={
+            "JAVA_HOME": "/opt/java/openjdk",
+            "PATH": "/opt/java/openjdk/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
             "MLFLOW_TRACKING_URI": "http://mlflow:5000",
             "MLFLOW_EXPERIMENT_NAME": "flight_delay_training",
             "MINIO_ENDPOINT": "http://minio:9000",
