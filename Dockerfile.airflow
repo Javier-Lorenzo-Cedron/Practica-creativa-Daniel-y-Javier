@@ -4,7 +4,8 @@ USER root
 
 ENV AIRFLOW_HOME=/opt/airflow
 RUN pip install --no-cache-dir "apache-airflow==2.9.3" \
-apache-airflow-providers-apache-spark==4.7.1
+    apache-airflow-providers-apache-spark==4.7.1 \
+    mlflow==2.19.0
 
 WORKDIR /opt/airflow
 EXPOSE 8080
