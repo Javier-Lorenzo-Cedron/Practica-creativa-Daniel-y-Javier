@@ -314,6 +314,9 @@ services:
       - spark-master
     ports:
       - "8090:8080"
+    environment:
+      JAVA_HOME: /usr/lib/jvm/java-21-openjdk-amd64
+
     volumes:
       - ./resources/airflow:/opt/airflow/dags
       - ./:/opt/airflow/project

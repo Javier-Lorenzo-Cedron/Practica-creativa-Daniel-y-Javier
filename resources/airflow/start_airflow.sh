@@ -6,6 +6,9 @@ export AIRFLOW__CORE__EXECUTOR=SequentialExecutor
 export AIRFLOW__CORE__LOAD_EXAMPLES=False
 export AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=sqlite:////opt/airflow/airflow.db
 export AIRFLOW__CORE__DAGS_FOLDER=/opt/airflow/dags
+export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
+export PATH=$JAVA_HOME/bin:$PATH
+
 
 airflow db migrate
 
