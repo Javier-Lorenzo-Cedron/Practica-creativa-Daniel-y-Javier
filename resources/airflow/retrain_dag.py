@@ -13,7 +13,7 @@ SPARK_SUBMIT = (
     "--master spark://spark-master:7077 "
     "--deploy-mode client "
     "--conf spark.jars.ivy=/tmp/.ivy2 "
-    "--conf spark.hadoop.fs.s3a.endpoint=[minio](http://minio:9000) "
+    "--conf spark.hadoop.fs.s3a.endpoint=http://minio:9000 "
     "--conf spark.hadoop.fs.s3a.access.key=admin "
     "--conf spark.hadoop.fs.s3a.secret.key=admin123 "
     "--conf spark.hadoop.fs.s3a.path.style.access=true "
