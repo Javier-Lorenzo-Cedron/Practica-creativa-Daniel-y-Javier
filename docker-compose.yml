@@ -304,6 +304,22 @@ services:
     volumes:
       - mlflow_data:/mlflow
 
+  airflow:
+    build:
+      context: .
+      dockerfile: Dockerfile.airflow
+    image: practica-airflow:latest
+    container_name: airflow
+    depends_on:
+      - spark-master
+    ports:
+      - "8090:8080"
+    volumes:
+      - ./resources/airflow:/opt/airflow/dags
+      - ./:/opt/airflow/project
+      - airflow_data:/opt/airflow
+
 volumes:
   minio_data:
   mlflow_data:
+  airflow_data:

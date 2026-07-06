@@ -1,0 +1,15 @@
+FROM apache/spark:4.1.1-scala2.13-java21-python3-r-ubuntu
+
+USER root
+
+ENV AIRFLOW_HOME=/opt/airflow
+RUN pip install --no-cache-dir "apache-airflow==2.9.3" \
+apache-airflow-providers-apache-spark==4.7.1
+
+WORKDIR /opt/airflow
+EXPOSE 8080
+
+COPY resources/airflow/start_airflow.sh /start_airflow.sh
+RUN chmod +x /start_airflow.sh
+
+CMD ["/start_airflow.sh"]
