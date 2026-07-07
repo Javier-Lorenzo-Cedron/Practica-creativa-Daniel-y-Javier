@@ -56,7 +56,7 @@ object FlinkPredictor {
   )
 
   case class BucketizerInfo(
-    splits: List[Double]
+    splits: List[Any]
   )
 
   case class TreeNode(

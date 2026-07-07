@@ -2,6 +2,7 @@ import os
 import re
 import sys
 import json
+import math
 from pyspark.sql import SparkSession
 from pyspark.ml.feature import Bucketizer, StringIndexerModel
 from pyspark.ml.classification import RandomForestClassificationModel
@@ -58,6 +59,19 @@ def get_indexer_labels(indexer_model):
             return list(indexer_model.labelsArray[0])
         except Exception:
             return []
+
+
+def normalize_float(x):
+    if isinstance(x, float):
+        if math.isinf(x):
+            return "Infinity" if x > 0 else "-Infinity"
+        if math.isnan(x):
+            return "NaN"
+    return x
+
+
+def normalize_list(values):
+    return [normalize_float(v) for v in values]
 
 
 def split_forest_debug_string(debug_str):
@@ -244,7 +258,7 @@ def main(project_root):
                 "sparkVersion": spark.version
             },
             "bucketizer": {
-                "splits": list(bucketizer.getSplits())
+                "splits": normalize_list(list(bucketizer.getSplits()))
             },
             "indexers": {
                 name: get_indexer_labels(model)
