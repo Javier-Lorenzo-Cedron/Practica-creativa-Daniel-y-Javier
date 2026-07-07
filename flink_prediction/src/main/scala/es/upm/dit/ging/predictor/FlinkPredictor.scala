@@ -1,5 +1,11 @@
 package es.upm.dit.ging.predictor
 
+import java.net.InetSocketAddress
+import java.time.Instant
+import java.util.Date
+
+import com.datastax.oss.driver.api.core.CqlSession
+import com.datastax.oss.driver.api.core.cql.PreparedStatement
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper}
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
@@ -7,6 +13,7 @@ import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import org.apache.flink.api.common.eventtime.WatermarkStrategy
 import org.apache.flink.api.common.functions.RichMapFunction
 import org.apache.flink.configuration.Configuration
+import org.apache.flink.streaming.api.functions.sink.RichSinkFunction
 import org.apache.flink.streaming.api.scala._
 import org.apache.flink.connector.kafka.source.KafkaSource
 import org.apache.flink.connector.kafka.source.enumerator.initializer.OffsetsInitializer
@@ -63,6 +70,55 @@ object FlinkPredictor {
     }
   }
 
+  class CassandraCustomSink(host: String) extends RichSinkFunction[String] {
+    @transient private var mapper: ObjectMapper = _
+    @transient private var session: CqlSession = _
+    @transient private var prepared: PreparedStatement = _
+
+    override def open(parameters: Configuration): Unit = {
+      mapper = new ObjectMapper()
+      mapper.registerModule(DefaultScalaModule)
+      mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+
+      session = CqlSession.builder()
+        .addContactPoint(new InetSocketAddress(host, 9042))
+        .withLocalDatacenter("datacenter1")
+        .build()
+
+      prepared = session.prepare(
+        """
+        INSERT INTO agile_data_science.flight_delay_predictions
+        (uuid, dest, origin, prediction, timestamp)
+        VALUES (?, ?, ?, ?, ?)
+        """
+      )
+    }
+
+    override def invoke(value: String, context: RichSinkFunction.Context): Unit = {
+      val pred = mapper.readValue(value, classOf[FlightPredictionResponse])
+
+      val tsString =
+        if (pred.Timestamp.endsWith("Z")) pred.Timestamp
+        else pred.Timestamp + "Z"
+
+      val ts = Date.from(Instant.parse(tsString))
+
+      val bound = prepared.bind(
+        pred.UUID,
+        pred.Dest,
+        pred.Origin,
+        Int.box(pred.Prediction),
+        ts
+      )
+
+      session.execute(bound)
+    }
+
+    override def close(): Unit = {
+      if (session != null) session.close()
+    }
+  }
+
   def main(args: Array[String]): Unit = {
     val env = StreamExecutionEnvironment.getExecutionEnvironment
     env.setParallelism(2)
@@ -94,7 +150,8 @@ object FlinkPredictor {
       .build()
 
     predictions.sinkTo(kafkaSink)
+    predictions.addSink(new CassandraCustomSink("cassandra"))
 
-    env.execute("Flink Flight Delay Predictor - Phase 2")
+    env.execute("Flink Flight Delay Predictor - Phase 3")
   }
 }
