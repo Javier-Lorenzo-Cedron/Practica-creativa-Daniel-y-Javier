@@ -94,7 +94,7 @@ object FlinkPredictor {
       )
     }
 
-    override def invoke(value: String, context: RichSinkFunction.Context): Unit = {
+    override def invoke(value: String): Unit = {
       val pred = mapper.readValue(value, classOf[FlightPredictionResponse])
 
       val tsString =
