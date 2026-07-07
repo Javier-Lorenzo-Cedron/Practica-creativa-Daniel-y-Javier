@@ -1,5 +1,9 @@
 package es.upm.dit.ging.predictor
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties
+import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper}
+import com.fasterxml.jackson.module.scala.DefaultScalaModule
+
 import org.apache.flink.api.common.eventtime.WatermarkStrategy
 import org.apache.flink.api.common.functions.RichMapFunction
 import org.apache.flink.configuration.Configuration
@@ -11,10 +15,52 @@ import org.apache.flink.api.common.serialization.SimpleStringSchema
 
 object FlinkPredictor {
 
-  class EchoFunction extends RichMapFunction[String, String] {
-    override def open(parameters: Configuration): Unit = {}
+  @JsonIgnoreProperties(ignoreUnknown = true)
+  case class FlightRequest(
+    UUID: String,
+    FlightDate: String,
+    Carrier: String,
+    Origin: String,
+    Dest: String,
+    FlightNum: String,
+    DepDelay: Double,
+    Distance: Double,
+    DayOfYear: Int,
+    DayOfMonth: Int,
+    DayOfWeek: Int,
+    Timestamp: String
+  )
 
-    override def map(value: String): String = value
+  case class FlightPredictionResponse(
+    UUID: String,
+    Prediction: Int,
+    Origin: String,
+    Dest: String,
+    Timestamp: String
+  )
+
+  class PredictFunction extends RichMapFunction[String, String] {
+    @transient private var mapper: ObjectMapper = _
+
+    override def open(parameters: Configuration): Unit = {
+      mapper = new ObjectMapper()
+      mapper.registerModule(DefaultScalaModule)
+      mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+    }
+
+    override def map(value: String): String = {
+      val req = mapper.readValue(value, classOf[FlightRequest])
+
+      val out = FlightPredictionResponse(
+        UUID = req.UUID,
+        Prediction = 1,
+        Origin = req.Origin,
+        Dest = req.Dest,
+        Timestamp = req.Timestamp
+      )
+
+      mapper.writeValueAsString(out)
+    }
   }
 
   def main(args: Array[String]): Unit = {
@@ -35,7 +81,7 @@ object FlinkPredictor {
       "Kafka Source"
     )
 
-    val echoed = stream.map(new EchoFunction())
+    val predictions = stream.map(new PredictFunction())
 
     val kafkaSink = KafkaSink.builder[String]()
       .setBootstrapServers("kafka:9092")
@@ -47,8 +93,8 @@ object FlinkPredictor {
       )
       .build()
 
-    echoed.sinkTo(kafkaSink)
+    predictions.sinkTo(kafkaSink)
 
-    env.execute("Flink Flight Delay Predictor - Phase 1")
+    env.execute("Flink Flight Delay Predictor - Phase 2")
   }
 }
