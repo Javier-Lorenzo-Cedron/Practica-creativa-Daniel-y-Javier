@@ -61,8 +61,10 @@ object FlinkPredictor {
 
   case class TreeNode(
     `type`: String,
+    splitType: Option[String],
     featureIndex: Option[Int],
     threshold: Option[Double],
+    categories: Option[List[Double]],
     prediction: Option[Double],
     left: Option[TreeNode],
     right: Option[TreeNode]
@@ -104,8 +106,8 @@ object FlinkPredictor {
     val routeIndex   = indexOfOrMinusOne(model.indexers.getOrElse("Route", Nil), route)
 
     Array(
-      req.DepDelay.toDouble,
-      req.Distance.toDouble,
+      req.DepDelay,
+      req.Distance,
       req.DayOfMonth.toDouble,
       req.DayOfWeek.toDouble,
       req.DayOfYear.toDouble,
@@ -123,9 +125,22 @@ object FlinkPredictor {
 
       case "node" =>
         val idx = node.featureIndex.get
-        val threshold = node.threshold.get
-        if (features(idx) <= threshold) evaluateTree(node.left.get, features)
-        else evaluateTree(node.right.get, features)
+        val featureValue = features(idx)
+
+        node.splitType.getOrElse("continuous") match {
+          case "continuous" =>
+            val threshold = node.threshold.get
+            if (featureValue <= threshold) evaluateTree(node.left.get, features)
+            else evaluateTree(node.right.get, features)
+
+          case "categorical" =>
+            val cats = node.categories.getOrElse(Nil)
+            if (cats.contains(featureValue)) evaluateTree(node.left.get, features)
+            else evaluateTree(node.right.get, features)
+
+          case other =>
+            throw new RuntimeException(s"Unknown splitType: $other")
+        }
 
       case other =>
         throw new RuntimeException(s"Unknown node type: $other")

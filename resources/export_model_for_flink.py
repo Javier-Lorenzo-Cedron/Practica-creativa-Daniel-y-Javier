@@ -1,4 +1,3 @@
-# resources/export_model_for_flink.py
 import os
 import re
 import sys
@@ -7,12 +6,11 @@ from pyspark.sql import SparkSession
 from pyspark.ml.feature import Bucketizer, StringIndexerModel
 from pyspark.ml.classification import RandomForestClassificationModel
 
-
 APP_NAME = "export_model_for_flink.py"
 
 
 def build_spark():
-    minio_endpoint = os.getenv("MINIO_ENDPOINT", "http://minio:9000")
+    minio_endpoint = os.getenv("MINIO_ENDPOINT", "[minio](http://minio:9000)")
     minio_access_key = os.getenv("MINIO_ACCESS_KEY", "admin")
     minio_secret_key = os.getenv("MINIO_SECRET_KEY", "admin123")
 
@@ -53,85 +51,17 @@ def load_transformers_and_model():
 
 
 def get_indexer_labels(indexer_model):
-    labels = []
     try:
-        labels = list(indexer_model.labels)
+        return list(indexer_model.labels)
     except Exception:
         try:
-            labels = list(indexer_model.labelsArray[0])
+            return list(indexer_model.labelsArray[0])
         except Exception:
-            labels = []
-    return labels
-
-
-def count_leading_spaces(s):
-    return len(s) - len(s.lstrip(" "))
-
-
-def parse_tree_block(lines, start_idx):
-    """
-    Parses Spark tree debug text recursively.
-    Expected patterns like:
-      If (feature 3 <= 12.5)
-      Else (feature 3 <= 12.5)
-      Predict: 2.0
-
-    Returns (node, next_index)
-    """
-    line = lines[start_idx].rstrip()
-    stripped = line.strip()
-
-    if stripped.startswith("Predict:"):
-        pred = float(stripped.split("Predict:")[1].strip())
-        return {"type": "leaf", "prediction": pred}, start_idx + 1
-
-    m = re.match(r"(If|Else) \(feature (\d+) <= ([\-0-9eE\.]+)\)", stripped)
-    if not m:
-        raise ValueError(f"Cannot parse node line: {line}")
-
-    feature_index = int(m.group(2))
-    threshold = float(m.group(3))
-    base_indent = count_leading_spaces(line)
-
-    # left child must be next
-    left_node, next_idx = parse_tree_block(lines, start_idx + 1)
-
-    # skip blank lines if any
-    while next_idx < len(lines) and not lines[next_idx].strip():
-        next_idx += 1
-
-    if next_idx >= len(lines):
-        raise ValueError("Missing Else branch")
-
-    else_line = lines[next_idx].rstrip()
-    else_stripped = else_line.strip()
-
-    m_else = re.match(r"Else \(feature (\d+) <= ([\-0-9eE\.]+)\)", else_stripped)
-    if not m_else:
-        raise ValueError(f"Expected Else branch, got: {else_line}")
-
-    else_indent = count_leading_spaces(else_line)
-    if else_indent != base_indent:
-        raise ValueError(f"Else indent mismatch: {else_line}")
-
-    right_node, final_idx = parse_tree_block(lines, next_idx + 1)
-
-    node = {
-        "type": "node",
-        "featureIndex": feature_index,
-        "threshold": threshold,
-        "left": left_node,
-        "right": right_node
-    }
-    return node, final_idx
+            return []
 
 
 def split_forest_debug_string(debug_str):
-    """
-    Splits RandomForestClassificationModel.toDebugString into per-tree blocks.
-    """
     lines = debug_str.splitlines()
-
     tree_blocks = []
     current = []
     inside_tree = False
@@ -144,9 +74,8 @@ def split_forest_debug_string(debug_str):
             inside_tree = True
             continue
 
-        if inside_tree:
-            if line.strip():
-                current.append(line)
+        if inside_tree and line.strip():
+            current.append(line.rstrip("\n"))
 
     if current:
         tree_blocks.append(current)
@@ -154,14 +83,98 @@ def split_forest_debug_string(debug_str):
     return tree_blocks
 
 
+def indent_of(line):
+    return len(line) - len(line.lstrip(" "))
+
+
+def parse_condition(stripped):
+    """
+    Supports:
+      If (feature 3 <= 12.5)
+      Else (feature 3 <= 12.5)
+      If (feature 8 in {2.0,4.0,5.0})
+      Else (feature 8 in {2.0,4.0,5.0})
+    """
+    m_num = re.match(r"(If|Else) \(feature (\d+) <= ([\-0-9eE\.]+)\)", stripped)
+    if m_num:
+        return {
+            "splitType": "continuous",
+            "featureIndex": int(m_num.group(2)),
+            "threshold": float(m_num.group(3))
+        }
+
+    m_cat = re.match(r"(If|Else) \(feature (\d+) in \{(.*)\}\)", stripped)
+    if m_cat:
+        values_raw = m_cat.group(3).strip()
+        if values_raw == "":
+            values = []
+        else:
+            values = [float(x.strip()) for x in values_raw.split(",") if x.strip()]
+        return {
+            "splitType": "categorical",
+            "featureIndex": int(m_cat.group(2)),
+            "categories": values
+        }
+
+    return None
+
+
+def parse_tree_block(lines, start_idx):
+    line = lines[start_idx].rstrip()
+    stripped = line.strip()
+
+    if stripped.startswith("Predict:"):
+        pred = float(stripped.split("Predict:")[1].strip())
+        return {"type": "leaf", "prediction": pred}, start_idx + 1
+
+    cond = parse_condition(stripped)
+    if cond is None:
+        raise ValueError(f"Cannot parse node line: {line}")
+
+    base_indent = indent_of(line)
+
+    left_node, next_idx = parse_tree_block(lines, start_idx + 1)
+
+    while next_idx < len(lines) and not lines[next_idx].strip():
+        next_idx += 1
+
+    if next_idx >= len(lines):
+        raise ValueError("Missing Else branch")
+
+    else_line = lines[next_idx].rstrip()
+    else_stripped = else_line.strip()
+
+    else_cond = parse_condition(else_stripped)
+    if else_cond is None or not else_stripped.startswith("Else "):
+        raise ValueError(f"Expected Else branch, got: {else_line}")
+
+    else_indent = indent_of(else_line)
+    if else_indent != base_indent:
+        raise ValueError(f"Else indent mismatch: {else_line}")
+
+    right_node, final_idx = parse_tree_block(lines, next_idx + 1)
+
+    node = {
+        "type": "node",
+        "splitType": cond["splitType"],
+        "featureIndex": cond["featureIndex"],
+        "left": left_node,
+        "right": right_node
+    }
+
+    if cond["splitType"] == "continuous":
+        node["threshold"] = cond["threshold"]
+    else:
+        node["categories"] = cond["categories"]
+
+    return node, final_idx
+
+
 def parse_forest(debug_str):
     blocks = split_forest_debug_string(debug_str)
     forest = []
 
     for i, block in enumerate(blocks):
-        # Spark normally starts each tree block with the root node directly:
-        # "  If (feature ...)"
-        # remove leading non-If/Predict junk if any
         start_idx = 0
         while start_idx < len(block):
             st = block[start_idx].strip()
@@ -187,41 +200,32 @@ def main(project_root):
     try:
         bucketizer, indexers, rf_model = load_transformers_and_model()
 
-        bucketizer_info = {
-            "splits": list(bucketizer.getSplits())
-        }
-
-        indexers_info = {
-            name: get_indexer_labels(model)
-            for name, model in indexers.items()
-        }
-
-        features_order = [
-            "DepDelay",
-            "Distance",
-            "DayOfMonth",
-            "DayOfWeek",
-            "DayOfYear",
-            "Carrier_index",
-            "Origin_index",
-            "Dest_index",
-            "Route_index"
-        ]
-
-        debug_str = rf_model.toDebugString
-        forest = parse_forest(debug_str)
-
         export = {
             "metadata": {
                 "modelType": "SparkRandomForestExportForFlink",
-                "numTrees": len(forest),
-                "numFeatures": len(features_order),
+                "numTrees": len(rf_model.trees),
+                "numFeatures": 9,
                 "sparkVersion": spark.version
             },
-            "bucketizer": bucketizer_info,
-            "indexers": indexers_info,
-            "featuresOrder": features_order,
-            "forest": forest
+            "bucketizer": {
+                "splits": list(bucketizer.getSplits())
+            },
+            "indexers": {
+                name: get_indexer_labels(model)
+                for name, model in indexers.items()
+            },
+            "featuresOrder": [
+                "DepDelay",
+                "Distance",
+                "DayOfMonth",
+                "DayOfWeek",
+                "DayOfYear",
+                "Carrier_index",
+                "Origin_index",
+                "Dest_index",
+                "Route_index"
+            ],
+            "forest": parse_forest(rf_model.toDebugString)
         }
 
         out_dir = os.path.join(project_root, "data")
@@ -232,7 +236,7 @@ def main(project_root):
             json.dump(export, f, indent=2)
 
         print(f"Exported model to {out_path}")
-        print(f"Trees: {len(forest)}")
+        print(f"Trees: {len(export['forest'])}")
 
     finally:
         spark.stop()
