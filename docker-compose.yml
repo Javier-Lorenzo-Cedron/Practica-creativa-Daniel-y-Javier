@@ -322,6 +322,53 @@ services:
       - ./:/opt/airflow/project
       - airflow_data:/opt/airflow
 
+  flink-jobmanager:
+    image: flink:1.20.0-scala_2.12-java17
+    container_name: flink-jobmanager
+    depends_on:
+      - kafka
+      - cassandra
+    ports:
+      - "8092:8081"
+    command: jobmanager
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: flink-jobmanager
+        rest.address: 0.0.0.0
+        rest.bind-address: 0.0.0.0
+    volumes:
+      - ./data:/opt/flink/data
+      - ./flink_prediction:/opt/flink/job
+
+  flink-taskmanager-1:
+    image: flink:1.20.0-scala_2.12-java17
+    container_name: flink-taskmanager-1
+    depends_on:
+      - flink-jobmanager
+    command: taskmanager
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: flink-jobmanager
+        taskmanager.numberOfTaskSlots: 2
+    volumes:
+      - ./data:/opt/flink/data
+
+  flink-taskmanager-2:
+    image: flink:1.20.0-scala_2.12-java17
+    container_name: flink-taskmanager-2
+    depends_on:
+      - flink-jobmanager
+    command: taskmanager
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: flink-jobmanager
+        taskmanager.numberOfTaskSlots: 2
+    volumes:
+      - ./data:/opt/flink/data
+
 volumes:
   minio_data:
   mlflow_data:
