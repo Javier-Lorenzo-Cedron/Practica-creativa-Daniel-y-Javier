@@ -10,7 +10,7 @@ APP_NAME = "export_model_for_flink.py"
 
 
 def build_spark():
-    minio_endpoint = os.getenv("MINIO_ENDPOINT", "[minio](http://minio:9000)")
+    minio_endpoint = os.getenv("MINIO_ENDPOINT", "http://minio:9000")
     minio_access_key = os.getenv("MINIO_ACCESS_KEY", "admin")
     minio_secret_key = os.getenv("MINIO_SECRET_KEY", "admin123")
 
