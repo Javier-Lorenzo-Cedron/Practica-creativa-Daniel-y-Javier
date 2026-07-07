@@ -1,6 +1,8 @@
 package es.upm.dit.ging.predictor
 
 import java.net.InetSocketAddress
+import java.nio.charset.StandardCharsets
+import java.nio.file.{Files, Paths}
 import java.time.Instant
 import java.util.Date
 
@@ -46,21 +48,114 @@ object FlinkPredictor {
     Timestamp: String
   )
 
-  class PredictFunction extends RichMapFunction[String, String] {
+  case class ModelMetadata(
+    modelType: String,
+    numTrees: Int,
+    numFeatures: Int,
+    sparkVersion: String
+  )
+
+  case class BucketizerInfo(
+    splits: List[Double]
+  )
+
+  case class TreeNode(
+    `type`: String,
+    featureIndex: Option[Int],
+    threshold: Option[Double],
+    prediction: Option[Double],
+    left: Option[TreeNode],
+    right: Option[TreeNode]
+  )
+
+  case class TreeModel(
+    treeId: Int,
+    root: TreeNode
+  )
+
+  case class ExportedModel(
+    metadata: ModelMetadata,
+    bucketizer: BucketizerInfo,
+    indexers: Map[String, List[String]],
+    featuresOrder: List[String],
+    forest: List[TreeModel]
+  )
+
+  def buildObjectMapper(): ObjectMapper = {
+    val mapper = new ObjectMapper()
+    mapper.registerModule(DefaultScalaModule)
+    mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+    mapper
+  }
+
+  def indexOfOrMinusOne(values: List[String], raw: String): Double = {
+    values.indexOf(raw) match {
+      case -1 => -1.0
+      case idx => idx.toDouble
+    }
+  }
+
+  def buildFeatures(req: FlightRequest, model: ExportedModel): Array[Double] = {
+    val route = s"${req.Origin}-${req.Dest}"
+
+    val carrierIndex = indexOfOrMinusOne(model.indexers.getOrElse("Carrier", Nil), req.Carrier)
+    val originIndex  = indexOfOrMinusOne(model.indexers.getOrElse("Origin", Nil), req.Origin)
+    val destIndex    = indexOfOrMinusOne(model.indexers.getOrElse("Dest", Nil), req.Dest)
+    val routeIndex   = indexOfOrMinusOne(model.indexers.getOrElse("Route", Nil), route)
+
+    Array(
+      req.DepDelay.toDouble,
+      req.Distance.toDouble,
+      req.DayOfMonth.toDouble,
+      req.DayOfWeek.toDouble,
+      req.DayOfYear.toDouble,
+      carrierIndex,
+      originIndex,
+      destIndex,
+      routeIndex
+    )
+  }
+
+  def evaluateTree(node: TreeNode, features: Array[Double]): Double = {
+    node.`type` match {
+      case "leaf" =>
+        node.prediction.getOrElse(0.0)
+
+      case "node" =>
+        val idx = node.featureIndex.get
+        val threshold = node.threshold.get
+        if (features(idx) <= threshold) evaluateTree(node.left.get, features)
+        else evaluateTree(node.right.get, features)
+
+      case other =>
+        throw new RuntimeException(s"Unknown node type: $other")
+    }
+  }
+
+  def predict(features: Array[Double], model: ExportedModel): Int = {
+    val votes = model.forest.map(tree => evaluateTree(tree.root, features).toInt)
+    votes.groupBy(identity).maxBy(_._2.size)._1
+  }
+
+  class PredictFunction(modelPath: String) extends RichMapFunction[String, String] {
     @transient private var mapper: ObjectMapper = _
+    @transient private var model: ExportedModel = _
 
     override def open(parameters: Configuration): Unit = {
-      mapper = new ObjectMapper()
-      mapper.registerModule(DefaultScalaModule)
-      mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+      mapper = buildObjectMapper()
+      val bytes = Files.readAllBytes(Paths.get(modelPath))
+      val json = new String(bytes, StandardCharsets.UTF_8)
+      model = mapper.readValue(json, classOf[ExportedModel])
     }
 
     override def map(value: String): String = {
       val req = mapper.readValue(value, classOf[FlightRequest])
+      val features = buildFeatures(req, model)
+      val pred = predict(features, model)
 
       val out = FlightPredictionResponse(
         UUID = req.UUID,
-        Prediction = 1,
+        Prediction = pred,
         Origin = req.Origin,
         Dest = req.Dest,
         Timestamp = req.Timestamp
@@ -76,9 +171,7 @@ object FlinkPredictor {
     @transient private var prepared: PreparedStatement = _
 
     override def open(parameters: Configuration): Unit = {
-      mapper = new ObjectMapper()
-      mapper.registerModule(DefaultScalaModule)
-      mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+      mapper = buildObjectMapper()
 
       session = CqlSession.builder()
         .addContactPoint(new InetSocketAddress(host, 9042))
@@ -137,7 +230,7 @@ object FlinkPredictor {
       "Kafka Source"
     )
 
-    val predictions = stream.map(new PredictFunction())
+    val predictions = stream.map(new PredictFunction("/opt/flink/data/flink_model.json"))
 
     val kafkaSink = KafkaSink.builder[String]()
       .setBootstrapServers("kafka:9092")
@@ -152,6 +245,6 @@ object FlinkPredictor {
     predictions.sinkTo(kafkaSink)
     predictions.addSink(new CassandraCustomSink("cassandra"))
 
-    env.execute("Flink Flight Delay Predictor - Phase 3")
+    env.execute("Flink Flight Delay Predictor - Phase 4")
   }
 }
