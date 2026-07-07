@@ -1,3 +1,5 @@
+import sbtassembly.AssemblyPlugin.autoImport._
+
 name := "flink-flight-predictor"
 
 version := "0.1.0"
@@ -18,3 +20,11 @@ libraryDependencies ++= Seq(
 )
 
 assembly / mainClass := Some("es.upm.dit.ging.predictor.FlinkPredictor")
+
+assembly / assemblyMergeStrategy := {
+  case "module-info.class" => MergeStrategy.discard
+  case PathList("META-INF", "versions", "9", "module-info.class") => MergeStrategy.discard
+  case PathList("META-INF", "io.netty.versions.properties") => MergeStrategy.first
+  case PathList("META-INF", xs @ _*) => MergeStrategy.discard
+  case _ => MergeStrategy.first
+}
