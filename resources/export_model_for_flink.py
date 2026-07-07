@@ -87,32 +87,55 @@ def indent_of(line):
     return len(line) - len(line.lstrip(" "))
 
 
-def parse_condition(stripped):
-    """
-    Supports:
-      If (feature 3 <= 12.5)
-      Else (feature 3 <= 12.5)
-      If (feature 8 in {2.0,4.0,5.0})
-      Else (feature 8 in {2.0,4.0,5.0})
-    """
-    m_num = re.match(r"(If|Else) \(feature (\d+) <= ([\-0-9eE\.]+)\)", stripped)
+def parse_if_condition(stripped):
+    m_num = re.match(r"If \(feature (\d+) <= ([\-0-9eE\.]+)\)", stripped)
     if m_num:
         return {
             "splitType": "continuous",
-            "featureIndex": int(m_num.group(2)),
-            "threshold": float(m_num.group(3))
+            "featureIndex": int(m_num.group(1)),
+            "threshold": float(m_num.group(2))
         }
 
-    m_cat = re.match(r"(If|Else) \(feature (\d+) in \{(.*)\}\)", stripped)
+    m_cat = re.match(r"If \(feature (\d+) in \{(.*)\}\)", stripped)
     if m_cat:
-        values_raw = m_cat.group(3).strip()
-        if values_raw == "":
-            values = []
-        else:
-            values = [float(x.strip()) for x in values_raw.split(",") if x.strip()]
+        values_raw = m_cat.group(2).strip()
+        values = [] if values_raw == "" else [float(x.strip()) for x in values_raw.split(",") if x.strip()]
         return {
             "splitType": "categorical",
-            "featureIndex": int(m_cat.group(2)),
+            "featureIndex": int(m_cat.group(1)),
+            "categories": values
+        }
+
+    return None
+
+
+def parse_else_condition(stripped):
+    # Else for continuous may appear as:
+    # Else (feature X > threshold)
+    m_num = re.match(r"Else \(feature (\d+) > ([\-0-9eE\.]+)\)", stripped)
+    if m_num:
+        return {
+            "splitType": "continuous",
+            "featureIndex": int(m_num.group(1)),
+            "threshold": float(m_num.group(2))
+        }
+
+    # Some Spark versions may still echo <=
+    m_num_alt = re.match(r"Else \(feature (\d+) <= ([\-0-9eE\.]+)\)", stripped)
+    if m_num_alt:
+        return {
+            "splitType": "continuous",
+            "featureIndex": int(m_num_alt.group(1)),
+            "threshold": float(m_num_alt.group(2))
+        }
+
+    m_cat = re.match(r"Else \(feature (\d+) in \{(.*)\}\)", stripped)
+    if m_cat:
+        values_raw = m_cat.group(2).strip()
+        values = [] if values_raw == "" else [float(x.strip()) for x in values_raw.split(",") if x.strip()]
+        return {
+            "splitType": "categorical",
+            "featureIndex": int(m_cat.group(1)),
             "categories": values
         }
 
@@ -127,7 +150,7 @@ def parse_tree_block(lines, start_idx):
         pred = float(stripped.split("Predict:")[1].strip())
         return {"type": "leaf", "prediction": pred}, start_idx + 1
 
-    cond = parse_condition(stripped)
+    cond = parse_if_condition(stripped)
     if cond is None:
         raise ValueError(f"Cannot parse node line: {line}")
 
@@ -144,13 +167,20 @@ def parse_tree_block(lines, start_idx):
     else_line = lines[next_idx].rstrip()
     else_stripped = else_line.strip()
 
-    else_cond = parse_condition(else_stripped)
-    if else_cond is None or not else_stripped.startswith("Else "):
+    else_cond = parse_else_condition(else_stripped)
+    if else_cond is None:
         raise ValueError(f"Expected Else branch, got: {else_line}")
 
     else_indent = indent_of(else_line)
     if else_indent != base_indent:
         raise ValueError(f"Else indent mismatch: {else_line}")
+
+    # sanity check: same feature and same split family
+    if cond["featureIndex"] != else_cond["featureIndex"]:
+        raise ValueError(f"If/Else feature mismatch: {line} / {else_line}")
+
+    if cond["splitType"] != else_cond["splitType"]:
+        raise ValueError(f"If/Else split type mismatch: {line} / {else_line}")
 
     right_node, final_idx = parse_tree_block(lines, next_idx + 1)
 
