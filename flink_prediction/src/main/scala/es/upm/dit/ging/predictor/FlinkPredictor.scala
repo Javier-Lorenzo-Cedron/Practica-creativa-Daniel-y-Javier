@@ -1,6 +1,8 @@
 package es.upm.dit.ging.predictor
 
 import org.apache.flink.api.common.eventtime.WatermarkStrategy
+import org.apache.flink.api.common.functions.RichMapFunction
+import org.apache.flink.configuration.Configuration
 import org.apache.flink.streaming.api.scala._
 import org.apache.flink.connector.kafka.source.KafkaSource
 import org.apache.flink.connector.kafka.source.enumerator.initializer.OffsetsInitializer
@@ -8,6 +10,13 @@ import org.apache.flink.connector.kafka.sink.{KafkaRecordSerializationSchema, Ka
 import org.apache.flink.api.common.serialization.SimpleStringSchema
 
 object FlinkPredictor {
+
+  class EchoFunction extends RichMapFunction[String, String] {
+    override def open(parameters: Configuration): Unit = {}
+
+    override def map(value: String): String = value
+  }
+
   def main(args: Array[String]): Unit = {
     val env = StreamExecutionEnvironment.getExecutionEnvironment
     env.setParallelism(2)
@@ -26,7 +35,7 @@ object FlinkPredictor {
       "Kafka Source"
     )
 
-    val echoed = stream.map(msg => msg)
+    val echoed = stream.map(new EchoFunction())
 
     val kafkaSink = KafkaSink.builder[String]()
       .setBootstrapServers("kafka:9092")
