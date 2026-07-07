@@ -7,7 +7,6 @@ import java.time.Instant
 import java.util.Date
 
 import com.datastax.oss.driver.api.core.CqlSession
-import com.datastax.oss.driver.api.core.cql.PreparedStatement
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper}
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
@@ -183,7 +182,6 @@ object FlinkPredictor {
   class CassandraCustomSink(host: String) extends RichSinkFunction[String] {
     @transient private var mapper: ObjectMapper = _
     @transient private var session: CqlSession = _
-    @transient private var prepared: PreparedStatement = _
 
     override def open(parameters: Configuration): Unit = {
       mapper = buildObjectMapper()
@@ -192,14 +190,6 @@ object FlinkPredictor {
         .addContactPoint(new InetSocketAddress(host, 9042))
         .withLocalDatacenter("datacenter1")
         .build()
-
-      prepared = session.prepare(
-        """
-        INSERT INTO agile_data_science.flight_delay_predictions
-        (uuid, dest, origin, prediction, timestamp)
-        VALUES (?, ?, ?, ?, ?)
-        """
-      )
     }
 
     override def invoke(value: String): Unit = {
@@ -211,15 +201,20 @@ object FlinkPredictor {
 
       val ts = Date.from(Instant.parse(tsString))
 
-      val bound = prepared.bind(
-        pred.UUID,
-        pred.Dest,
-        pred.Origin,
-        Int.box(pred.Prediction),
-        ts
-      )
+      val query =
+        s"""
+           |INSERT INTO agile_data_science.flight_delay_predictions
+           |(uuid, dest, origin, prediction, timestamp)
+           |VALUES (
+           |'${pred.UUID}',
+           |'${pred.Dest}',
+           |'${pred.Origin}',
+           |${pred.Prediction},
+           |'${ts.toInstant.toString}'
+           |)
+           |""".stripMargin.replaceAll("\n", " ")
 
-      session.execute(bound)
+      session.execute(query)
     }
 
     override def close(): Unit = {
