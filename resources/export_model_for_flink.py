@@ -110,8 +110,6 @@ def parse_if_condition(stripped):
 
 
 def parse_else_condition(stripped):
-    # Else for continuous may appear as:
-    # Else (feature X > threshold)
     m_num = re.match(r"Else \(feature (\d+) > ([\-0-9eE\.]+)\)", stripped)
     if m_num:
         return {
@@ -120,7 +118,6 @@ def parse_else_condition(stripped):
             "threshold": float(m_num.group(2))
         }
 
-    # Some Spark versions may still echo <=
     m_num_alt = re.match(r"Else \(feature (\d+) <= ([\-0-9eE\.]+)\)", stripped)
     if m_num_alt:
         return {
@@ -136,6 +133,16 @@ def parse_else_condition(stripped):
         return {
             "splitType": "categorical",
             "featureIndex": int(m_cat.group(1)),
+            "categories": values
+        }
+
+    m_cat_not = re.match(r"Else \(feature (\d+) not in \{(.*)\}\)", stripped)
+    if m_cat_not:
+        values_raw = m_cat_not.group(2).strip()
+        values = [] if values_raw == "" else [float(x.strip()) for x in values_raw.split(",") if x.strip()]
+        return {
+            "splitType": "categorical",
+            "featureIndex": int(m_cat_not.group(1)),
             "categories": values
         }
 
@@ -175,7 +182,6 @@ def parse_tree_block(lines, start_idx):
     if else_indent != base_indent:
         raise ValueError(f"Else indent mismatch: {else_line}")
 
-    # sanity check: same feature and same split family
     if cond["featureIndex"] != else_cond["featureIndex"]:
         raise ValueError(f"If/Else feature mismatch: {line} / {else_line}")
 
