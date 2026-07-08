@@ -141,13 +141,30 @@ Deben aparecer:
 ==========================================================================
 ## 6. Crear flujo NiFi (si no está ya creado)
 ==========================================================================
+Antes de nada comprobar que en el contenedor *nifi* en el archivo docker-compose.yml su variable de entorno NIFI_WEB_PROXY_HOST hace referencia al IP (o localhost) de la máquina que se esté utilizando (a veces estas IPs cambian al detener e iniciar una VM en GCloud), y si no es así actualizar esa variable:
 
-Ve a *https://localhost:8443/nifi*:
+**En local:**
+
+    git add .
+    git commit -m "Flink"
+    git push -u origin *RamaUtilizada*
+
+**En VM de GCloud:**
+
+    git checkout *RamaUtilizada*
+    git pull
+
+Ve a *https://IP:8443/nifi*:
 - usuario: admin
 - contraseña: adminadminadmin
 
 Si el flujo no lo tienes ya creado descárgate el archivo /nifi/config_definitiva.xml
-Después en la página de NiFi, en el operador, le das al botón de upload template y eliges el archivo que acabas de descargar. Una vez terminada la descarga buscas en la barra de arriba la opción de *Template* y la arrastras a la cuadrilla, te mostrará los diferentes templates disponibles y tu de ahí eliges el que has descargado. Una vez con el flujo configurado sólo le tienes que ir dando Start a los diferentes procesadores yendo de derecha a izquierda.
+
+Después en la página de NiFi, en el operador, le das al botón de upload template y eliges el archivo que acabas de descargar. 
+
+Una vez terminada la descarga buscas en la barra de arriba la opción de *Template* y la arrastras a la cuadrilla, te mostrará los diferentes templates disponibles y tu de ahí eliges el que has descargado. 
+
+Una vez con el flujo configurado sólo le tienes que ir dando Start a los diferentes procesadores yendo de derecha a izquierda.
 
 ==========================================================================
 ## 7. Verificar Cassandra
