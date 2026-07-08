@@ -123,7 +123,7 @@ Si faltara alguno, levántalo explícitamente:
 Si web se queda reiniciendose al comprobar los contenedores, esto es normal, continua con el siguiente paso.
 
 Verifica el cluster Spark en el navegador:
-    http://localhost:8080
+    http://IP:8080
 Debe aparecer el master ALIVE con 2 workers registrados.
 
 ==========================================================================
@@ -141,6 +141,7 @@ Deben aparecer:
 ==========================================================================
 ## 6. Crear flujo NiFi (si no está ya creado)
 ==========================================================================
+
 Antes de nada comprobar que en el contenedor *nifi* en el archivo docker-compose.yml su variable de entorno NIFI_WEB_PROXY_HOST hace referencia al IP (o localhost) de la máquina que se esté utilizando (a veces estas IPs cambian al detener e iniciar una VM en GCloud), y si no es así actualizar esa variable:
 
 **En local:**
@@ -178,7 +179,7 @@ Puedes comprobar que las distancias se han cargado (debe dar ~4696):
 ## 8. Verificar MinIO
 ==========================================================================
 
-Abre http://localhost:9001
+Abre http://IP:9001
 
 Credenciales por defecto:
 - usuario: admin
@@ -220,7 +221,7 @@ Si quieres seguir los logs:
 
 Este proceso tarda por lo general varios minutos. Puedes seguirlo también en http://IP:8080 viendo los workers spark (suele tardar unos 10-20 segundos en aparecer como running application).
 
-Además, en MLflow ([localhost](http://localhost:5000) debe aparecer un nuevo experimento o un nuevo run con:
+Además, en MLflow (http://IP:5000) debe aparecer un nuevo experimento o un nuevo run con:
 - parámetros del entrenamiento
 - métrica `accuracy`
 - y el modelo registrado como artefacto
@@ -243,7 +244,7 @@ Airflow ejecuta un `spark-submit` contra el cluster y, como el entrenamiento ya 
 
 Abrir en el navegador:
 
-    http://localhost:8090
+    http://IP:8090
 
 Credenciales por defecto:
 - usuario: `admin`
@@ -263,7 +264,7 @@ Debe aparecer el DAG:
 
 La ejecución se considera correcta cuando:
 - la tarea `retrain_model` aparece en **verde (success)** en Airflow
-- y en MLflow (http://localhost:5000) aparece un **nuevo run** del experimento
+- y en MLflow (http://IP:5000) aparece un **nuevo run** del experimento
 
 Notas:
 - Airflow usa SQLite y `SequentialExecutor`, lo cual es suficiente para esta práctica.
@@ -283,7 +284,7 @@ Sigue los logs hasta que cargue los modelos y se quede escuchando:
 
     docker compose logs -f spark-job
 
-En http://localhost:8080 aparecerá la aplicación corriendo, con tareas
+En http://IP:8080 aparecerá la aplicación corriendo, con tareas
 repartidas entre los 2 workers (modo distribuido).
 Este es el modo de predicción por defecto del proyecto.
 
@@ -384,7 +385,7 @@ Comprobar si está corriendo:
 
 Abrir en el navegador:
 
-    http://localhost:5001/flights/delays/predict_kafka
+    http://IP:5001/flights/delays/predict_kafka
 
 Rellenar el formulario y enviar una predicción.
 
@@ -414,6 +415,7 @@ Notas:
 ==========================================================================
 ## 14. Probar el escenario completo
 ==========================================================================
+
 Hay dos modos de predicción posibles:
 ### Opción A: predicción con Spark
 Usar el servicio `spark-job` (paso 12).
@@ -421,7 +423,7 @@ Usar el servicio `spark-job` (paso 12).
 Usar el cluster Flink y el job `FlinkPredictor` (paso 13).
 
 En ambos casos, abrir en el navegador:
-    http://localhost:5001/flights/delays/predict_kafka
+    http://IP:5001/flights/delays/predict_kafka
 
 Rellenar el formulario (valores por defecto ATL -> SFO) y pulsar Submit.
 La predicción debe aparecer en la página sin recargar (vía WebSocket).
