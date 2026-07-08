@@ -206,33 +206,8 @@ Notas:
 - En esta práctica MLflow usa SQLite como backend y un volumen Docker (`mlflow_data`) para almacenar la base de datos y los artefactos.
 - Si la interfaz web no carga desde fuera de la máquina, comprobar que el puerto 5000 está permitido en el firewall.
 
-
 ==========================================================================
-## 10. Entrenar los modelos (models/ en el Lakehouse)
-==========================================================================
-
-Ejecuta:
-
-    docker compose --profile train up --build spark-train -d
-
-Si quieres seguir los logs:
-    
-    docker compose logs -f spark-train
-
-Este proceso tarda por lo general varios minutos. Puedes seguirlo también en http://IP:8080 viendo los workers spark (suele tardar unos 10-20 segundos en aparecer como running application).
-
-Además, en MLflow (http://IP:5000) debe aparecer un nuevo experimento o un nuevo run con:
-- parámetros del entrenamiento
-- métrica `accuracy`
-- y el modelo registrado como artefacto
-
-Cuando termine puede comprobar en MiniO (http://IP:9001) que la carpeta models está creada con todos los modelos dentro .bin
-
-(IMPRESCINDIBLE antes del paso 9: el cluster Spark monta models/ como volumen
-y el job carga los modelos desde ahí.)
-
-==========================================================================
-## 11. Reentrenamiento orquestado con Airflow
+## 10. Reentrenamiento orquestado con Airflow
 ==========================================================================
 
 El proyecto incorpora **Apache Airflow** para orquestar el reentrenamiento del modelo en el cluster Spark.
@@ -264,7 +239,8 @@ Debe aparecer el DAG:
 
 La ejecución se considera correcta cuando:
 - la tarea `retrain_model` aparece en **verde (success)** en Airflow
-- y en MLflow (http://IP:5000) aparece un **nuevo run** del experimento
+- en MLflow (http://IP:5000) aparece un **nuevo run** del experimento
+- y en MiniO (http://IP:9001) la carpeta models está creada con todos los modelos dentro .bin
 
 Notas:
 - Airflow usa SQLite y `SequentialExecutor`, lo cual es suficiente para esta práctica.
@@ -273,7 +249,7 @@ Notas:
 
 
 ==========================================================================
-## 12. Lanzar el job de predicción en el cluster (servicio spark-job)
+## 11. Lanzar el job de predicción en el cluster (servicio spark-job)
 ==========================================================================
 
 Con los datos, topics y modelos ya listos, arranca el job de predicción basado en Spark bajo demanda:
@@ -289,7 +265,7 @@ repartidas entre los 2 workers (modo distribuido).
 Este es el modo de predicción por defecto del proyecto.
 
 ==========================================================================
-## 13. Predicción alternativa con Apache Flink (sustituye a Spark)
+## 12. Predicción alternativa con Apache Flink (sustituye a Spark)
 ==========================================================================
 
 Como alternativa al job de predicción con Spark, el proyecto permite ejecutar la inferencia con **Apache Flink**.
@@ -304,7 +280,7 @@ La cadena completa queda así:
 
 Web -> Kafka -> Flink -> Cassandra + Kafka response -> WebSocket -> Web
 
-### 13.1 Levantar el cluster Flink
+### 12.1 Levantar el cluster Flink
 
 Arrancar:
 
@@ -314,7 +290,7 @@ La interfaz de Flink queda disponible en:
 
     http://IP:8092
 
-### 13.2 Exportar el modelo entrenado a JSON
+### 12.2 Exportar el modelo entrenado a JSON
 
 Antes de lanzar el job de Flink, hay que exportar el modelo de Spark MLlib al fichero:
 
@@ -345,7 +321,7 @@ Verificar que el fichero se ha generado:
     ls -lh data/flink_model.json
     head -40 data/flink_model.json
 
-### 13.3 Compilar el job de Flink
+### 12.3 Compilar el job de Flink
 
 El proyecto de Flink está en:
 
@@ -363,13 +339,13 @@ Debe generarse el fichero:
 
     flink_prediction/target/scala-2.12/flink-flight-predictor-assembly-0.1.0.jar
 
-### 13.4 Parar el predictor Spark (si lo has ejecutado antes)
+### 12.4 Parar el predictor Spark (si lo has ejecutado antes)
 
 Como Spark y Flink consumirían el mismo topic de peticiones, antes de lanzar Flink hay que parar el predictor Spark:
 
     docker stop spark-job
 
-### 13.5 Lanzar el job de Flink
+### 12.5 Lanzar el job de Flink
 
 Ejecutar:
 
@@ -381,7 +357,7 @@ Comprobar si está corriendo:
 
     docker exec flink-jobmanager flink list
 
-### 13.6 Verificación de punta a punta
+### 12.6 Verificación de punta a punta
 
 Abrir en el navegador:
 
