@@ -39,10 +39,9 @@ El script `setup.sh` automatiza todos los pasos previos a levantar la infraestru
 ### ¿Qué hace el script?
 
 - Paso 0: Instala Docker, Java 17, sbt, Python 3.10+, curl y git si faltan
-- Paso 1: Clona el repositorio (si no existe)
-- Paso 2: Crea el entorno virtual Python e instala dependencias (`requirements.txt`)
-- Paso 3: Descarga los datos (`resources/download_data.sh`)
-- Paso 4: Compila el JAR de Scala (`sbt package`)
+- Paso 1: Clona el repositorio (si no existe) y crea el entorno virtual Python e instala dependencias (`requirements.txt`)
+- Paso 2: Descarga los datos (`resources/download_data.sh`)
+- Paso 3: Compila el JAR de Scala (`sbt package`)
 
 
 El script es idempotente: puede ejecutarse múltiples veces sin problemas. Si algo ya está instalado o completado, lo detecta y continúa.
