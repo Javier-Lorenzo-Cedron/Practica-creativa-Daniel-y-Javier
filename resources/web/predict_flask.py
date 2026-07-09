@@ -2,7 +2,7 @@ import eventlet
 eventlet.monkey_patch()
 
 import sys, os, re, json, uuid, datetime, threading
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, redirect, url_for
 from flask_socketio import SocketIO
 from pymongo import MongoClient
 from bson import json_util
@@ -276,12 +276,21 @@ def airline(carrier_code):
 
 
 # Controller: Fetch an airplane entity page
+# Después:
 @app.route("/")
+def index():
+    return redirect(url_for('flight_delays_page_kafka'))
+
 @app.route("/airlines")
 @app.route("/airlines/")
 def airlines():
-    airlines = client.agile_data_science.airplanes_per_carrier.find()
+    try:
+        airlines = list(client.agile_data_science.airplanes_per_carrier.find())
+    except Exception as e:
+        print("Mongo no disponible (funcionalidad fuera de alcance de la practica):", e)
+        airlines = []
     return render_template('all_airlines.html', airlines=airlines)
+
 
 
 @app.route("/flights/search")
