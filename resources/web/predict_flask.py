@@ -4,6 +4,7 @@ eventlet.monkey_patch()
 import sys, os, re, json, uuid, datetime, threading
 from flask import Flask, render_template, request
 from flask_socketio import SocketIO
+from pymongo import MongoClient
 from bson import json_util
 
 import cassandra.cluster
@@ -21,6 +22,8 @@ import predict_utils
 # Set up Flask, Mongo and Elasticsearch
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
+
+client = MongoClient(os.getenv("MONGO_URI", "mongodb://127.0.0.1:27017"))
 
 from pyelasticsearch import ElasticSearch
 try:
